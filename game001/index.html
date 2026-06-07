@@ -2,25 +2,26 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>3D Dice Maze - Large Dots</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Dice Maze - Fixed</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; user-select: none; }
-        canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+        body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
         
         #scoreUi {
-            position: absolute; top: 20px; left: 20px; color: #ffd700;
-            font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.6); padding: 10px 20px; border-radius: 5px;
+            position: absolute; top: 15px; left: 15px; color: #ffd700;
+            font-family: sans-serif; font-size: 16px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.7); padding: 8px 15px; border-radius: 5px;
             border: 1px solid #ffd700; pointer-events: none; z-index: 10;
         }
 
         #clearUi {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); color: #00ffcc;
-            font-family: 'Arial Black', sans-serif; font-size: 64px; font-weight: bold;
-            text-shadow: 0 0 20px #00ffcc; background-color: rgba(0,0,0,0.8);
-            padding: 20px 50px; border-radius: 15px; border: 3px solid #00ffcc;
-            pointer-events: none; z-index: 20; text-align: center;
+            font-family: sans-serif; font-size: 36px; font-weight: bold;
+            text-shadow: 0 0 15px #00ffcc; background-color: rgba(0,0,0,0.85);
+            padding: 15px 30px; border-radius: 10px; border: 2px solid #00ffcc;
+            pointer-events: none; z-index: 20; text-align: center; width: 70%;
         }
     </style>
     <script src="three.min.js"></script>
@@ -32,12 +33,14 @@
 
 <script>
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 11, 11);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    // 💡 縦長画面でも迷路の全体がしっかり画面内に収まるよう、カメラの距離を引きに調整
+    camera.position.set(0, 15, 12);
     camera.lookAt(0, 0, -1);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -49,72 +52,50 @@
     grid.position.set(0.5, -0.5, 0.5);
     scene.add(grid);
 
-    // 6枚のキャンバスを使って、目を大きくしたテクスチャ画像を自動生成
     function createDiceMaterials() {
         const mats = [];
-        const dots = {
-            1: [128],
-            2: [70, 186],
-            3: [64, 128, 192],
-            4: [70, 186, 70, 186],
-            5: [64, 192, 128, 64, 192],
-            6: [70, 186, 70, 186, 70, 186]
-        };
-
         for (let i = 1; i <= 6; i++) {
             const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
+            canvas.width = 128;
+            canvas.height = 128;
             const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 256, 256);
-
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 128, 128);
             ctx.fillStyle = (i === 1) ? '#ff0000' : '#111111';
-            
-            // 💡 目のサイズを大幅に大きく調整
-            const radius = (i === 1) ? 45 : 25; 
+            const radius = (i === 1) ? 22 : 12;
 
-            // 各面のドット配置
             if (i === 1) {
-                ctx.beginPath(); ctx.arc(dots[1][0], dots[1][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
             } else if (i === 2) {
-                ctx.beginPath(); ctx.arc(dots[2][0], dots[2][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[2][1], dots[2][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
             } else if (i === 3) {
-                ctx.beginPath(); ctx.arc(dots[3][0], dots[3][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[3][1], dots[3][1], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[3][2], dots[3][2], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
             } else if (i === 4) {
-                ctx.beginPath(); ctx.arc(dots[4][0], dots[4][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[4][1], dots[4][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[4][0], dots[4][1], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[4][1], dots[4][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
             } else if (i === 5) {
-                ctx.beginPath(); ctx.arc(dots[5][0], dots[5][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[5][1], dots[5][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[5][2], dots[5][2], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[5][3], dots[5][1], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[5][4], dots[5][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
             } else if (i === 6) {
-                ctx.beginPath(); ctx.arc(dots[6][0], dots[6][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[6][1], dots[6][0], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[6][2], dots[6][2], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[6][3], dots[6][2], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[6][4], dots[6][4], radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(dots[6][5], dots[6][4], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 64, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 64, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
             }
-
-            ctx.strokeStyle = '#dddddd';
-            ctx.lineWidth = 10;
-            ctx.strokeRect(5, 5, 246, 246);
-
+            ctx.strokeStyle = '#dddddd'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, 122, 122);
             const texture = new THREE.CanvasTexture(canvas);
             mats.push(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.2 }));
         }
-
-        // [右(1), 左(6), 上(2), 下(5), 前(3), 後(4)] の順にマテリアルをバインド
-        return [mats[0], mats[5], mats[1], mats[4], mats[2], mats[3]];
+        return [mats[0], mats[1], mats[2], mats[3], mats[4], mats[5]];
     }
 
     const cubeGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
@@ -135,8 +116,7 @@
     function generateDiggingMaze(stageNum) {
         walls.forEach(w => scene.remove(w));
         coins.forEach(c => scene.remove(c));
-        walls = [];
-        coins = [];
+        walls = []; coins = [];
 
         if (stageNum > 5) {
             document.getElementById('clearUi').innerText = "ALL CLEAR!!";
@@ -149,21 +129,16 @@
 
         for (let x = 0; x < mapSize; x++) {
             mazeGrid[x] = [];
-            for (let z = 0; z < mapSize; z++) {
-                mazeGrid[x][z] = 1;
-            }
+            for (let z = 0; z < mapSize; z++) { mazeGrid[x][z] = 1; }
         }
 
-        const startX = 1;
-        const startZ = 1;
+        const startX = 1; const startZ = 1;
         mazeGrid[startX][startZ] = 0;
-
         const dcl = [{x: startX, z: startZ}];
 
         while (dcl.length > 0) {
             const current = dcl[dcl.length - 1];
             const dirs = [];
-
             if (current.x - 2 > 0 && mazeGrid[current.x - 2][current.z] === 1) dirs.push({x: -1, z: 0});
             if (current.x + 2 < mapSize - 1 && mazeGrid[current.x + 2][current.z] === 1) dirs.push({x: 1, z: 0});
             if (current.z - 2 > 0 && mazeGrid[current.x][current.z - 2] === 1) dirs.push({x: 0, z: -1});
@@ -174,30 +149,20 @@
                 mazeGrid[current.x + d.x][current.z + d.z] = 0;
                 mazeGrid[current.x + d.x * 2][current.z + d.z * 2] = 0;
                 dcl.push({x: current.x + d.x * 2, z: current.z + d.z * 2});
-            } else {
-                dcl.pop();
-            }
+            } else { dcl.pop(); }
         }
 
         for (let x = 0; x < mapSize; x++) {
             for (let z = 0; z < mapSize; z++) {
-                let worldX = x - 5;
-                let worldZ = z - 5;
-
+                let worldX = x - 5; let worldZ = z - 5;
                 if (mazeGrid[x][z] === 1) {
                     const wall = new THREE.Mesh(cubeGeo, wallMat);
-                    wall.position.set(worldX, 0, worldZ);
-                    scene.add(wall);
-                    walls.push(wall);
+                    wall.position.set(worldX, 0, worldZ); scene.add(wall); walls.push(wall);
                 } else {
-                    if (!(x === 1 && z === 1)) {
-                        if (Math.random() < 0.20) {
-                            const coin = new THREE.Mesh(coinGeo, coinMat);
-                            coin.position.set(worldX, 0, worldZ);
-                            coin.rotation.x = Math.PI / 2;
-                            scene.add(coin);
-                            coins.push(coin);
-                        }
+                    if (!(x === 1 && z === 1) && Math.random() < 0.20) {
+                        const coin = new THREE.Mesh(coinGeo, coinMat);
+                        coin.position.set(worldX, 0, worldZ); coin.rotation.x = Math.PI / 2;
+                        scene.add(coin); coins.push(coin);
                     }
                 }
             }
@@ -205,24 +170,20 @@
 
         if (coins.length === 0) {
             const coin = new THREE.Mesh(coinGeo, coinMat);
-            coin.position.set(3, 0, 3);
-            coin.rotation.x = Math.PI / 2;
-            scene.add(coin);
-            coins.push(coin);
+            coin.position.set(3, 0, 3); coin.rotation.x = Math.PI / 2;
+            scene.add(coin); coins.push(coin);
         }
 
         player.position.set(-4, 0, -4);
         player.quaternion.set(0, 0, 0, 1);
-        finalTargetX = -4;
-        finalTargetZ = -4;
+        finalTargetX = -4; finalTargetZ = -4;
 
-        collectedCount = 0;
-        totalCoins = coins.length;
+        collectedCount = 0; totalCoins = coins.length;
         document.getElementById('scoreUi').innerText = `Stage ${stageNum} - Score: ${collectedCount} / ${totalCoins}`;
         document.getElementById('clearUi').style.display = 'none';
         isStageClearing = false;
     }
-    // 6. マウスクリックによる目的地の検知
+    // 6. マウス・タッチ（スワイプ）による目的地の検知
     let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     let raycaster = new THREE.Raycaster();
     let mouse = new THREE.Vector2();
@@ -242,17 +203,38 @@
     let finalTargetX = 0;
     let finalTargetZ = 0;
 
-    window.addEventListener('mousedown', (e) => {
+    // パソコン（マウス）用のクリックイベント
+    window.addEventListener('mousedown', (e) => { 
+        handleInput(e.clientX, e.clientY); 
+    });
+    
+    // 💡 【修正】指のタッチ座標を「e.touches[0]」から正確に取得するようにバグを修正
+    window.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) {
+            handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        // スマホ画面の勝手なスクロールや跳ね返り現象を100%禁止
+        e.preventDefault(); 
+        if (e.touches && e.touches.length > 0 && !isMoving && !isStageClearing) {
+            handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    // 共通の入力座標変換処理
+    function handleInput(clientX, clientY) {
         if (isMoving || isStageClearing) return;
 
-        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        mouse.x = (clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
         raycaster.ray.intersectPlane(plane, clickPos);
 
         finalTargetX = Math.round(clickPos.x);
         finalTargetZ = Math.round(clickPos.z);
-    });
+    }
 
     // 1マスずつの進路をジグザグに自動計算する関数
     function planNextStep() {
