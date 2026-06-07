@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Dice Maze - Large Dots</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; user-select: none; }
+        canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+        
+        #scoreUi {
+            position: absolute; top: 20px; left: 20px; color: #ffd700;
+            font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6); padding: 10px 20px; border-radius: 5px;
+            border: 1px solid #ffd700; pointer-events: none; z-index: 10;
+        }
+
+        #clearUi {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: #00ffcc;
+            font-family: 'Arial Black', sans-serif; font-size: 64px; font-weight: bold;
+            text-shadow: 0 0 20px #00ffcc; background-color: rgba(0,0,0,0.8);
+            padding: 20px 50px; border-radius: 15px; border: 3px solid #00ffcc;
+            pointer-events: none; z-index: 20; text-align: center;
+        }
+    </style>
+    <script src="three.min.js"></script>
+</head>
+<body>
+
+<div id="scoreUi">Stage 1 - Score: 0 / 0</div>
+<div id="clearUi">STAGE CLEAR!</div>
+
+<script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 11, 11);
+    camera.lookAt(0, 0, -1);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight.position.set(5, 12, 8);
+    scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0x555555));
+
+    const grid = new THREE.GridHelper(24, 24, 0x555555, 0x333333);
+    grid.position.set(0.5, -0.5, 0.5);
+    scene.add(grid);
+
+    // 6枚のキャンバスを使って、目を大きくしたテクスチャ画像を自動生成
+    function createDiceMaterials() {
+        const mats = [];
+        const dots = {
+            1: [128],
+            2: [70, 186],
+            3: [64, 128, 192],
+            4: [70, 186, 70, 186],
+            5: [64, 192, 128, 64, 192],
+            6: [70, 186, 70, 186, 70, 186]
+        };
+
+        for (let i = 1; i <= 6; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 256, 256);
+
+            ctx.fillStyle = (i === 1) ? '#ff0000' : '#111111';
+            
+            // 💡 目のサイズを大幅に大きく調整
+            const radius = (i === 1) ? 45 : 25; 
+
+            // 各面のドット配置
+            if (i === 1) {
+                ctx.beginPath(); ctx.arc(dots[1][0], dots[1][0], radius, 0, Math.PI * 2); ctx.fill();
+            } else if (i === 2) {
+                ctx.beginPath(); ctx.arc(dots[2][0], dots[2][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[2][1], dots[2][1], radius, 0, Math.PI * 2); ctx.fill();
+            } else if (i === 3) {
+                ctx.beginPath(); ctx.arc(dots[3][0], dots[3][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[3][1], dots[3][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[3][2], dots[3][2], radius, 0, Math.PI * 2); ctx.fill();
+            } else if (i === 4) {
+                ctx.beginPath(); ctx.arc(dots[4][0], dots[4][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[4][1], dots[4][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[4][0], dots[4][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[4][1], dots[4][1], radius, 0, Math.PI * 2); ctx.fill();
+            } else if (i === 5) {
+                ctx.beginPath(); ctx.arc(dots[5][0], dots[5][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[5][1], dots[5][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[5][2], dots[5][2], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[5][3], dots[5][1], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[5][4], dots[5][1], radius, 0, Math.PI * 2); ctx.fill();
+            } else if (i === 6) {
+                ctx.beginPath(); ctx.arc(dots[6][0], dots[6][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[6][1], dots[6][0], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[6][2], dots[6][2], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[6][3], dots[6][2], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[6][4], dots[6][4], radius, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dots[6][5], dots[6][4], radius, 0, Math.PI * 2); ctx.fill();
+            }
+
+            ctx.strokeStyle = '#dddddd';
+            ctx.lineWidth = 10;
+            ctx.strokeRect(5, 5, 246, 246);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            mats.push(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.2 }));
+        }
+
+        // [右(1), 左(6), 上(2), 下(5), 前(3), 後(4)] の順にマテリアルをバインド
+        return [mats[0], mats[5], mats[1], mats[4], mats[2], mats[3]];
+    }
+
+    const cubeGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
+    const playerMaterials = createDiceMaterials();
+    const player = new THREE.Mesh(cubeGeo, playerMaterials);
+    scene.add(player);
+
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
+    const coinGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xfff000, roughness: 0.1, metalness: 0.8 });
+
+    let currentStage = 1;
+    let collectedCount = 0;
+    let totalCoins = 0;
+    let walls = [];
+    let coins = [];
+
+    function generateDiggingMaze(stageNum) {
+        walls.forEach(w => scene.remove(w));
+        coins.forEach(c => scene.remove(c));
+        walls = [];
+        coins = [];
+
+        if (stageNum > 5) {
+            document.getElementById('clearUi').innerText = "ALL CLEAR!!";
+            document.getElementById('clearUi').style.display = 'block';
+            return;
+        }
+
+        const mapSize = 11;
+        const mazeGrid = [];
+
+        for (let x = 0; x < mapSize; x++) {
+            mazeGrid[x] = [];
+            for (let z = 0; z < mapSize; z++) {
+                mazeGrid[x][z] = 1;
+            }
+        }
+
+        const startX = 1;
+        const startZ = 1;
+        mazeGrid[startX][startZ] = 0;
+
+        const dcl = [{x: startX, z: startZ}];
+
+        while (dcl.length > 0) {
+            const current = dcl[dcl.length - 1];
+            const dirs = [];
+
+            if (current.x - 2 > 0 && mazeGrid[current.x - 2][current.z] === 1) dirs.push({x: -1, z: 0});
+            if (current.x + 2 < mapSize - 1 && mazeGrid[current.x + 2][current.z] === 1) dirs.push({x: 1, z: 0});
+            if (current.z - 2 > 0 && mazeGrid[current.x][current.z - 2] === 1) dirs.push({x: 0, z: -1});
+            if (current.z + 2 < mapSize - 1 && mazeGrid[current.x][current.z + 2] === 1) dirs.push({x: 0, z: 1});
+
+            if (dirs.length > 0) {
+                const d = dirs[Math.floor(Math.random() * dirs.length)];
+                mazeGrid[current.x + d.x][current.z + d.z] = 0;
+                mazeGrid[current.x + d.x * 2][current.z + d.z * 2] = 0;
+                dcl.push({x: current.x + d.x * 2, z: current.z + d.z * 2});
+            } else {
+                dcl.pop();
+            }
+        }
+
+        for (let x = 0; x < mapSize; x++) {
+            for (let z = 0; z < mapSize; z++) {
+                let worldX = x - 5;
+                let worldZ = z - 5;
+
+                if (mazeGrid[x][z] === 1) {
+                    const wall = new THREE.Mesh(cubeGeo, wallMat);
+                    wall.position.set(worldX, 0, worldZ);
+                    scene.add(wall);
+                    walls.push(wall);
+                } else {
+                    if (!(x === 1 && z === 1)) {
+                        if (Math.random() < 0.20) {
+                            const coin = new THREE.Mesh(coinGeo, coinMat);
+                            coin.position.set(worldX, 0, worldZ);
+                            coin.rotation.x = Math.PI / 2;
+                            scene.add(coin);
+                            coins.push(coin);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (coins.length === 0) {
+            const coin = new THREE.Mesh(coinGeo, coinMat);
+            coin.position.set(3, 0, 3);
+            coin.rotation.x = Math.PI / 2;
+            scene.add(coin);
+            coins.push(coin);
+        }
+
+        player.position.set(-4, 0, -4);
+        player.quaternion.set(0, 0, 0, 1);
+        finalTargetX = -4;
+        finalTargetZ = -4;
+
+        collectedCount = 0;
+        totalCoins = coins.length;
+        document.getElementById('scoreUi').innerText = `Stage ${stageNum} - Score: ${collectedCount} / ${totalCoins}`;
+        document.getElementById('clearUi').style.display = 'none';
+        isStageClearing = false;
+    }
+    // 6. マウスクリックによる目的地の検知
+    let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+    let clickPos = new THREE.Vector3();
+
+    // 移動および進行の管理変数
+    let isMoving = false;
+    let isStageClearing = false;
+    let moveTimer = 0;
+    const moveDuration = 10;
+    
+    let startPos = new THREE.Vector3();
+    let nextPos = new THREE.Vector3();
+    let rotAxis = new THREE.Vector3();
+    let startQuaternion = new THREE.Quaternion();
+
+    let finalTargetX = 0;
+    let finalTargetZ = 0;
+
+    window.addEventListener('mousedown', (e) => {
+        if (isMoving || isStageClearing) return;
+
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(plane, clickPos);
+
+        finalTargetX = Math.round(clickPos.x);
+        finalTargetZ = Math.round(clickPos.z);
+    });
+
+    // 1マスずつの進路をジグザグに自動計算する関数
+    function planNextStep() {
+        if (player.position.x === finalTargetX && player.position.z === finalTargetZ) return;
+
+        let diffX = finalTargetX - player.position.x;
+        let diffZ = finalTargetZ - player.position.z;
+        let dirX = 0; let dirZ = 0;
+
+        if (Math.abs(diffX) >= Math.abs(diffZ) && diffX !== 0) {
+            dirX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dirX);
+        } else if (diffZ !== 0) {
+            dirZ = diffZ > 0 ? 1 : -1; rotAxis.set(dirZ, 0, 0);
+        }
+
+        nextPos.copy(player.position);
+        nextPos.x += dirX; nextPos.z += dirZ;
+
+        let canMove = true;
+        walls.forEach(w => {
+            if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) canMove = false;
+        });
+
+        if (!canMove) {
+            dirX = 0; dirZ = 0;
+            if (player.position.x !== finalTargetX && Math.abs(diffX) < Math.abs(diffZ)) {
+                dirX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dirX);
+            } else if (player.position.z !== finalTargetZ) {
+                dirZ = diffZ > 0 ? 1 : -1; rotAxis.set(dirZ, 0, 0);
+            }
+            nextPos.copy(player.position);
+            nextPos.x += dirX; nextPos.z += dirZ;
+
+            canMove = true;
+            walls.forEach(w => {
+                if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) canMove = false;
+            });
+        }
+
+        if (!canMove || (dirX === 0 && dirZ === 0)) {
+            finalTargetX = player.position.x; finalTargetZ = player.position.z;
+            return;
+        }
+
+        startPos.copy(player.position);
+        startQuaternion.copy(player.quaternion);
+        isMoving = true;
+        moveTimer = 0;
+    }
+
+    // コインの獲得判定とクリア処理
+    function checkCoinCollision() {
+        for (let i = coins.length - 1; i >= 0; i--) {
+            const coin = coins[i];
+            if (Math.abs(player.position.x - coin.position.x) < 0.1 && Math.abs(player.position.z - coin.position.z) < 0.1) {
+                scene.remove(coin);
+                coins.splice(i, 1);
+                
+                collectedCount++;
+                document.getElementById('scoreUi').innerText = `Stage ${currentStage} - Score: ${collectedCount} / ${totalCoins}`;
+                
+                if (collectedCount === totalCoins) {
+                    isStageClearing = true;
+                    document.getElementById('clearUi').innerText = "STAGE CLEAR!";
+                    document.getElementById('clearUi').style.display = 'block';
+                    
+                    setTimeout(() => {
+                        currentStage++;
+                        generateDiggingMaze(currentStage);
+                    }, 2000);
+                }
+            }
+        }
+    }
+
+    generateDiggingMaze(currentStage);
+
+    // 7. ゲームメインループ
+    function animate() {
+        requestAnimationFrame(animate);
+
+        coins.forEach(coin => {
+            coin.rotation.z += 0.04;
+        });
+
+        if (!isMoving && !isStageClearing) {
+            planNextStep();
+        }
+
+        if (isMoving) {
+            moveTimer++;
+            let progress = moveTimer / moveDuration;
+
+            if (progress >= 1.0) {
+                isMoving = false;
+                player.position.copy(nextPos);
+                let finalRot = new THREE.Quaternion().setFromAxisAngle(rotAxis, Math.PI / 2);
+                player.quaternion.copy(startQuaternion).premultiply(finalRot);
+                
+                checkCoinCollision();
+            } else {
+                player.position.lerpVectors(startPos, nextPos, progress);
+                let currentAngle = (Math.PI / 2) * progress;
+                let deltaRot = new THREE.Quaternion().setFromAxisAngle(rotAxis, currentAngle);
+                player.quaternion.copy(startQuaternion).premultiply(deltaRot);
+            }
+        }
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
