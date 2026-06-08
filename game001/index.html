@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Dice Maze - Dynamic Enemies</title>
+    <title>3D Dice Maze - Grid Wall Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; -webkit-user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
@@ -65,8 +65,7 @@
 <div id="startScreen">
     <button id="startBtn" onclick="onClickStart()">START</button>
 </div>
-
-<script {nonce}>
+<script>
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
     
@@ -93,7 +92,7 @@
 
     const grid = new THREE.GridHelper(24, 24, 0x555555, 0x333333);
     grid.position.set(0.5, -0.5, 0.5); scene.add(grid);
-    // 1. サイコロの大きな目を自動描画するシステム
+
     function createDiceMaterials() {
         const mats = [];
         for (let i = 1; i <= 6; i++) {
@@ -118,26 +117,24 @@
     }
 
     const cubeGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
-    const playerMaterials = createDiceMaterials();
-    const player = new THREE.Mesh(cubeGeo, playerMaterials);
-    scene.add(player);
+    const player = new THREE.Mesh(cubeGeo, createDiceMaterials()); scene.add(player);
 
     const wallMat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 2 });
+
     const coinGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
     const coinMat = new THREE.MeshStandardMaterial({ color: 0xfff000, roughness: 0.1, metalness: 0.8 });
 
     const floorGeo = new THREE.PlaneGeometry(1.0, 1.0);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6 });
 
-    // 💡 最大4匹の赤いトゲトゲ球体エネミー（enemy1〜4）を定義
     const enemyGeo = new THREE.SphereGeometry(0.4, 8, 8);
     const enemyMat = new THREE.MeshStandardMaterial({ color: 0xaa0000, roughness: 0.4, metalness: 0.3 });
     const enemy1 = new THREE.Mesh(enemyGeo, enemyMat);
     const enemy2 = new THREE.Mesh(enemyGeo, enemyMat);
     const enemy3 = new THREE.Mesh(enemyGeo, enemyMat);
     const enemy4 = new THREE.Mesh(enemyGeo, enemyMat);
-
-    let currentStage = 1; let collectedCount = 0; let totalCoins = 10; let walls = []; let coins = []; let floorPlanes = [];
+    let currentStage = 1; let collectedCount = 0; let totalCoins = 10; let walls = []; let coins = []; let floorPlanes = []; let wallLines = [];
     let isMoving = false; let isStageClearing = false; let isGameOver = false; let moveTimer = 0; const moveDuration = 10;
     let startPos = new THREE.Vector3(); let nextPos = new THREE.Vector3(); let rotAxis = new THREE.Vector3(); let startQuaternion = new THREE.Quaternion();
     let finalTargetX = 0; let finalTargetZ = 0;
@@ -152,7 +149,6 @@
         {x:-4, z:3}, {x:-4, z:2}, {x:-4, z:1}, {x:-4, z:0}, {x:-4, z:-1}, {x:-4, z:-2}, {x:-4, z:-3}
     ];
 
-    // 💡 各敵キャラクターのパトロール用インデックスを定義
     let e1Idx = 4; let e2Idx = 20; let e3Idx = 12; let e4Idx = 28;
     let enemyMoveTimer = 0; const enemyMoveInterval = 15;
     let e1Start = new THREE.Vector3(); let e1Next = new THREE.Vector3();
@@ -160,10 +156,9 @@
     let e3Start = new THREE.Vector3(); let e3Next = new THREE.Vector3();
     let e4Start = new THREE.Vector3(); let e4Next = new THREE.Vector3();
 
-    // 2. 穴掘り法迷路の生成ロジック
     function generateDiggingMaze(stageNum) {
-        walls.forEach(w => scene.remove(w)); coins.forEach(c => scene.remove(c)); floorPlanes.forEach(f => scene.remove(f));
-        walls = []; coins = []; floorPlanes = []; 
+        walls.forEach(w => scene.remove(w)); coins.forEach(c => scene.remove(c)); floorPlanes.forEach(f => scene.remove(f)); wallLines.forEach(l => scene.remove(l));
+        walls = []; coins = []; floorPlanes = []; wallLines = [];
         scene.remove(enemy1); scene.remove(enemy2); scene.remove(enemy3); scene.remove(enemy4);
 
         if (stageNum > 5) { 
@@ -179,7 +174,6 @@
         
         renderer.setClearColor(0x111111, 1.0);
         
-        // 💡 定数上書きエラー（mazeGrid=0）は綺麗に消去されています
         let dcl = [{x: 1, z: 1}];
         while (dcl.length > 0) {
             const cur = dcl[dcl.length - 1]; const dirs = [];
@@ -201,8 +195,14 @@
             for (let z = 0; z < mapSize; z++) {
                 let wX = x - 5; let wZ = z - 5;
                 if (x === 1 || x === mapSize - 2 || z === 1 || z === mapSize - 2) { if (x > 0 && x < mapSize - 1 && z > 0 && z < mapSize - 1) mazeGrid[x][z] = 0; }
-                if (mazeGrid[x][z] === 1) { const w = new THREE.Mesh(cubeGeo, wallMat); w.position.set(wX, 0, wZ); scene.add(w); walls.push(w); }
-                else {
+                if (mazeGrid[x][z] === 1) { 
+                    const w = new THREE.Mesh(cubeGeo, wallMat); w.position.set(wX, 0, wZ); scene.add(w); walls.push(w); 
+                    
+                    // 💡 壁ブロックの立体フチに黒いグリッド線を重ね合わせて立体感を強化
+                    const edgesGeo = new THREE.EdgesGeometry(cubeGeo);
+                    const wl = new THREE.LineSegments(edgesGeo, lineMat); wl.position.set(wX, 0, wZ);
+                    scene.add(wl); wallLines.push(wl);
+                } else {
                     const f = new THREE.Mesh(floorGeo, floorMat); f.position.set(wX, -0.49, wZ); f.rotation.x = -Math.PI / 2;
                     scene.add(f); floorPlanes.push(f);
                     if (!(wX === -4 && wZ === -4)) { coinCandidates.push({x: wX, z: wZ}); }
@@ -221,23 +221,21 @@
 
         player.position.set(-4, 0, -4); player.quaternion.set(0, 0, 0, 1); finalTargetX = -4; finalTargetZ = -4;
         
-        // 💡【新配置システム】初期インデックスをリセット
         e1Idx = 4; e2Idx = 20; e3Idx = 12; e4Idx = 28;
 
-        // 💡 ステージ数に応じた（ステージ-1）匹の敵の生成・配置
-        if (stageNum >= 2) { // 2面：上中央（1匹）
+        if (stageNum >= 2) {
             enemy1.position.set(enemyRoute[e1Idx].x, 0, enemyRoute[e1Idx].z); scene.add(enemy1);
             e1Start.copy(enemy1.position); e1Next.copy(enemy1.position);
         }
-        if (stageNum >= 3) { // 3面：上中央、下中央（2匹）
+        if (stageNum >= 3) {
             enemy2.position.set(enemyRoute[e2Idx].x, 0, enemyRoute[e2Idx].z); scene.add(enemy2);
             e2Start.copy(enemy2.position); e2Next.copy(enemy2.position);
         }
-        if (stageNum >= 4) { // 4面：上中央、右中央、下中央（3匹）
+        if (stageNum >= 4) {
             enemy3.position.set(enemyRoute[e3Idx].x, 0, enemyRoute[e3Idx].z); scene.add(enemy3);
             e3Start.copy(enemy3.position); e3Next.copy(enemy3.position);
         }
-        if (stageNum >= 5) { // 5面：上中央、右中央、下中央、左中央（4匹を完全同時出現！）
+        if (stageNum >= 5) {
             enemy4.position.set(enemyRoute[e4Idx].x, 0, enemyRoute[e4Idx].z); scene.add(enemy4);
             e4Start.copy(enemy4.position); e4Next.copy(enemy4.position);
         }
@@ -295,13 +293,11 @@
         startPos.copy(player.position); startQuaternion.copy(player.quaternion); isMoving = true; moveTimer = 0;
     }
 
-    // 💡【最大4匹対応】プレイヤーとアクティブな敵の衝突判定
     function checkEnemyCollision() {
         if (currentStage === 1) return;
 
         let hit = false;
         
-        // ステージ数（出現数）に応じて、対応する敵との距離を個別にチェック
         if (currentStage >= 2) {
             let dx = player.position.x - enemy1.position.x; let dz = player.position.z - enemy1.position.z;
             if (Math.sqrt(dx * dx + dz * dz) < 0.6) hit = true;
@@ -365,7 +361,6 @@
             coins.forEach(c => { if(c) c.rotation.z += 0.04; }); 
         }
         
-        // 存在する敵オブジェクトのみ回転
         enemy1.rotation.y += 0.05; enemy1.rotation.x += 0.02;
         enemy2.rotation.y += 0.05; enemy2.rotation.x += 0.02;
         enemy3.rotation.y += 0.05; enemy3.rotation.x += 0.02;
@@ -376,7 +371,6 @@
             let enemyProgress = enemyMoveTimer / enemyMoveInterval;
             
             if (enemyProgress >= 1.0) {
-                // 各自の次マスインデックスを更新・座標設定
                 if (currentStage >= 2) {
                     e1Idx = (e1Idx + 1) % enemyRoute.length; let n1 = (e1Idx + 1) % enemyRoute.length;
                     e1Start.set(enemyRoute[e1Idx].x, 0, enemyRoute[e1Idx].z); e1Next.set(enemyRoute[n1].x, 0, enemyRoute[n1].z);
@@ -399,7 +393,6 @@
                 }
                 enemyMoveTimer = 0;
             } else {
-                // ぬるぬる補間移動
                 if (currentStage >= 2) enemy1.position.lerpVectors(e1Start, e1Next, enemyProgress);
                 if (currentStage >= 3) enemy2.position.lerpVectors(e2Start, e2Next, enemyProgress);
                 if (currentStage >= 4) enemy3.position.lerpVectors(e3Start, e3Next, enemyProgress);
@@ -429,3 +422,5 @@
         updateCameraPosition(); 
     });
 </script>
+</body>
+</html>
