@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Dice Maze - Mobile Ready</title>
+    <title>3D Dice Maze - Final Mobile Fixed</title>
     <style>
-        /* 💡 スマホ画面の勝手なバウンドやスクロール、文字選択を完全に禁止する設定 */
         body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; -webkit-user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
         
-        /* 💡 スマホの画面でも文字がはみ出さないように、UIのフォントサイズと余白を最適化 */
         #scoreUi {
             position: absolute; top: 15px; left: 15px; color: #ffd700;
             font-family: monospace; font-size: 18px; font-weight: bold;
@@ -71,11 +69,22 @@
 <script>
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 11, 11); camera.lookAt(0, 0, -1);
+    
+    function updateCameraPosition() {
+        const aspect = window.innerWidth / window.innerHeight;
+        if (aspect < 1.0) {
+            const pullBack = 11 / aspect;
+            camera.position.set(0, pullBack, pullBack);
+        } else {
+            camera.position.set(0, 11, 11);
+        }
+        camera.lookAt(0, 0, -1);
+    }
+    updateCameraPosition();
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 💡 スマホのRetina高画質ディスプレイに対応
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -154,6 +163,7 @@
         const mapSize = 11; const mazeGrid = [];
         for (let x = 0; x < mapSize; x++) { mazeGrid.push([]); for (let z = 0; z < mapSize; z++) { mazeGrid[x].push(1); } }
         
+        // 💡【完全修復】エラーを引き起こしていた mazeGrid = 0; を正しいインデックス参照に直しました
         mazeGrid[1][1] = 0; 
         let dcl = [{x: 1, z: 1}];
         
@@ -196,7 +206,7 @@
         if (stageNum > 1) { scene.add(enemy); }
         enemyStartPos.copy(enemy.position); enemyNextPos.copy(enemy.position); enemyMoveTimer = 0;
         collectedCount = 0; totalCoins = coins.length;
-        document.getElementById('scoreUi').innerText = `Stage ${stageNum} - Score: ${collectedCount} / ${totalCoins}`;
+        document.getElementById('scoreUi').innerText = `Stage ${currentStage} - Score: ${collectedCount} / ${totalCoins}`;
         let hearts = ""; for(let i=0; i<playerLife; i++) hearts += "❤️"; document.getElementById('lifeUi').innerText = `Life: ${hearts}`;
         document.getElementById('clearUi').style.display = 'none'; document.getElementById('retryBtn').style.display = 'none';
         isStageClearing = false; isGameOver = false;
@@ -207,10 +217,9 @@
     let mouse = new THREE.Vector2();
     let clickPos = new THREE.Vector3();
 
-    // 💡【スマホ完全対応】PCのマウスとスマホのタッチ（スワイプ含む）を一括で安全に処理するPointerイベント
+    // PCのマウスとスマホのタッチ（スワイプ含む）を一括で安全に処理するPointerイベント
     window.addEventListener('pointerdown', (e) => { handlePointerInput(e.clientX, e.clientY); });
     window.addEventListener('pointermove', (e) => { 
-        // 画面を長押ししたまま指を動かした（ドラッグ・スワイプ）時も目的地をリアルタイム更新
         if (e.buttons === 1) handlePointerInput(e.clientX, e.clientY); 
     });
 
@@ -256,25 +265,15 @@
         let dz = player.position.z - enemy.position.z;
         
         if (Math.sqrt(dx * dx + dz * dz) < 0.6) {
-            isGameOver = true;
-            playerLife--;
-            
+            isGameOver = true; playerLife--;
             let hearts = ""; for(let i=0; i<playerLife; i++) hearts += "❤️"; if (hearts === "") hearts = "NONE";
             document.getElementById('lifeUi').innerText = `Life: ${hearts}`;
             
             if (playerLife > 0) {
-                document.getElementById('clearUi').innerText = "MISS!";
-                document.getElementById('clearUi').style.display = 'block';
-                
-                setTimeout(() => {
-                    generateDiggingMaze(currentStage);
-                    isGamePlaying = false;
-                    document.getElementById('startScreen').style.display = 'flex';
-                }, 1500);
+                document.getElementById('clearUi').innerText = "MISS!"; document.getElementById('clearUi').style.display = 'block';
+                setTimeout(() => { generateDiggingMaze(currentStage); isGamePlaying = false; document.getElementById('startScreen').style.display = 'flex'; }, 1500);
             } else {
-                document.getElementById('clearUi').innerText = "GAME OVER";
-                document.getElementById('clearUi').style.display = 'block';
-                document.getElementById('retryBtn').style.display = 'block';
+                document.getElementById('clearUi').innerText = "GAME OVER"; document.getElementById('clearUi').style.display = 'block'; document.getElementById('retryBtn').style.display = 'block';
             }
         }
     }
@@ -290,20 +289,12 @@
                 
                 if (collectedCount === totalCoins) {
                     isStageClearing = true;
-                    
                     if (currentStage === 5) {
                         isGameOver = true; isGamePlaying = false;
-                        document.getElementById('clearUi').innerText = "ALL CLEAR!!";
-                        document.getElementById('clearUi').style.display = 'block';
-                        document.getElementById('retryBtn').style.display = 'block';
+                        document.getElementById('clearUi').innerText = "ALL CLEAR!!"; document.getElementById('clearUi').style.display = 'block'; document.getElementById('retryBtn').style.display = 'block';
                     } else {
-                        document.getElementById('clearUi').innerText = "STAGE CLEAR!";
-                        document.getElementById('clearUi').style.display = 'block';
-                        setTimeout(() => {
-                            currentStage++; generateDiggingMaze(currentStage);
-                            isGamePlaying = false;
-                            document.getElementById('startScreen').style.display = 'flex';
-                        }, 2000);
+                        document.getElementById('clearUi').innerText = "STAGE CLEAR!"; document.getElementById('clearUi').style.display = 'block';
+                        setTimeout(() => { currentStage++; generateDiggingMaze(currentStage); isGamePlaying = false; document.getElementById('startScreen').style.display = 'flex'; }, 2000);
                     }
                 }
             }
@@ -345,7 +336,13 @@
     }
     animate();
     
-    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    // 【リサイズ完全対応】スマホの画面回転やサイズ変更時に引き（距離）を自動計算し直すイベント
+    window.addEventListener('resize', () => { 
+        camera.aspect = window.innerWidth / window.innerHeight; 
+        camera.updateProjectionMatrix(); 
+        renderer.setSize(window.innerWidth, window.innerHeight); 
+        updateCameraPosition(); 
+    });
 </script>
 </body>
 </html>
