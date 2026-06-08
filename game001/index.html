@@ -3,43 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Dice Maze - Fixed</title>
+    <title>3D Dice Maze - Mobile Ready</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; }
+        /* 💡 スマホ画面の勝手なバウンドやスクロール、文字選択を完全に禁止する設定 */
+        body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; -webkit-user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
         
+        /* 💡 スマホの画面でも文字がはみ出さないように、UIのフォントサイズと余白を最適化 */
         #scoreUi {
-            position: absolute; top: 20px; left: 20px; color: #ffd700;
-            font-family: monospace; font-size: 24px; font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.6); padding: 10px 20px; border-radius: 5px;
+            position: absolute; top: 15px; left: 15px; color: #ffd700;
+            font-family: monospace; font-size: 18px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6); padding: 8px 15px; border-radius: 5px;
             border: 1px solid #ffd700; pointer-events: none; z-index: 10;
         }
 
         #lifeUi {
-            position: absolute; top: 75px; left: 20px; color: #ff3366;
-            font-family: sans-serif; font-size: 22px; font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.6); padding: 8px 20px; border-radius: 5px;
+            position: absolute; top: 60px; left: 15px; color: #ff3366;
+            font-family: sans-serif; font-size: 18px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6); padding: 6px 15px; border-radius: 5px;
             border: 1px solid #ff3366; pointer-events: none; z-index: 10;
         }
 
         #clearUi {
-            display: none; position: absolute; top: 50%; left: 50%;
+            display: none; position: absolute; top: 45%; left: 50%;
             transform: translate(-50%, -50%); color: #00ffcc;
-            font-family: sans-serif; font-size: 64px; font-weight: bold;
-            text-shadow: 0 0 20px #00ffcc; background-color: rgba(0,0,0,0.8);
-            padding: 20px 50px; border-radius: 15px; border: 3px solid #00ffcc;
-            pointer-events: none; z-index: 20; text-align: center;
+            font-family: sans-serif; font-size: 44px; font-weight: bold;
+            text-shadow: 0 0 15px #00ffcc; background-color: rgba(0,0,0,0.8);
+            padding: 15px 30px; border-radius: 10px; border: 2px solid #00ffcc;
+            pointer-events: none; z-index: 20; text-align: center; width: 75%;
         }
 
         #retryBtn {
             display: none; position: absolute; top: 65%; left: 50%;
             transform: translate(-50%, -50%); color: #ffffff;
-            font-family: sans-serif; font-size: 28px; font-weight: bold;
-            background-color: #ff3333; padding: 15px 40px; border-radius: 10px;
+            font-family: sans-serif; font-size: 24px; font-weight: bold;
+            background-color: #ff3333; padding: 12px 35px; border-radius: 10px;
             border: 2px solid #ffffff; cursor: pointer; z-index: 30;
-            box-shadow: 0 0 15px #ff3333; text-align: center; transition: 0.2s;
+            box-shadow: 0 0 15px #ff3333; text-align: center;
         }
-        #retryBtn:hover { background-color: #cc0000; scale: 1.05; }
 
         #startScreen {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -48,12 +49,11 @@
         }
 
         #startBtn {
-            color: #ffffff; font-family: sans-serif; font-size: 36px; font-weight: bold;
-            background-color: #00ffcc; padding: 20px 60px; border-radius: 15px;
+            color: #ffffff; font-family: sans-serif; font-size: 32px; font-weight: bold;
+            background-color: #00ffcc; padding: 15px 50px; border-radius: 15px;
             border: 3px solid #ffffff; cursor: pointer; box-shadow: 0 0 25px #00ffcc;
-            text-align: center; transition: 0.2s;
+            text-align: center;
         }
-        #startBtn:hover { background-color: #00ccaa; scale: 1.05; }
     </style>
     <script src="three.min.js"></script>
 </head>
@@ -75,7 +75,7 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 💡 スマホのRetina高画質ディスプレイに対応
     document.body.appendChild(renderer.domElement);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -154,7 +154,6 @@
         const mapSize = 11; const mazeGrid = [];
         for (let x = 0; x < mapSize; x++) { mazeGrid.push([]); for (let z = 0; z < mapSize; z++) { mazeGrid[x].push(1); } }
         
-        // 💡【完全修正】エラーの原因だった「mazeGrid = 0;」を配列要素への安全な代入に修正
         mazeGrid[1][1] = 0; 
         let dcl = [{x: 1, z: 1}];
         
@@ -202,21 +201,28 @@
         document.getElementById('clearUi').style.display = 'none'; document.getElementById('retryBtn').style.display = 'none';
         isStageClearing = false; isGameOver = false;
     }
-    // 3. マウスクリックによる目的地の検知
+    // 3. マウスクリックおよびスマホの指タッチによる目的地の検知
     let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     let raycaster = new THREE.Raycaster();
     let mouse = new THREE.Vector2();
     let clickPos = new THREE.Vector3();
 
-    window.addEventListener('mousedown', (e) => {
+    // 💡【スマホ完全対応】PCのマウスとスマホのタッチ（スワイプ含む）を一括で安全に処理するPointerイベント
+    window.addEventListener('pointerdown', (e) => { handlePointerInput(e.clientX, e.clientY); });
+    window.addEventListener('pointermove', (e) => { 
+        // 画面を長押ししたまま指を動かした（ドラッグ・スワイプ）時も目的地をリアルタイム更新
+        if (e.buttons === 1) handlePointerInput(e.clientX, e.clientY); 
+    });
+
+    function handlePointerInput(clientX, clientY) {
         if (!isGamePlaying || isMoving || isStageClearing || isGameOver) return;
-        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        mouse.x = (clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
         raycaster.ray.intersectPlane(plane, clickPos);
         finalTargetX = Math.round(clickPos.x);
         finalTargetZ = Math.round(clickPos.z);
-    });
+    }
 
     function onClickStart() { isGamePlaying = true; document.getElementById('startScreen').style.display = 'none'; }
     function onClickRetry() { playerLife = 3; currentStage = 1; generateDiggingMaze(currentStage); isGamePlaying = false; document.getElementById('startScreen').style.display = 'flex'; }
@@ -243,14 +249,12 @@
         startPos.copy(player.position); startQuaternion.copy(player.quaternion); isMoving = true; moveTimer = 0;
     }
 
-    // プレイヤーと敵の接触・ライフ・UI制御
     function checkEnemyCollision() {
         if (currentStage === 1) return;
 
         let dx = player.position.x - enemy.position.x;
         let dz = player.position.z - enemy.position.z;
         
-        // 💡【フリーズ完全対策】「**」記号を使わず、すべてのブラウザで互換性のある数式に書き換え
         if (Math.sqrt(dx * dx + dz * dz) < 0.6) {
             isGameOver = true;
             playerLife--;
@@ -259,27 +263,23 @@
             document.getElementById('lifeUi').innerText = `Life: ${hearts}`;
             
             if (playerLife > 0) {
-                // ライフが残っている「MISS!」の時
                 document.getElementById('clearUi').innerText = "MISS!";
                 document.getElementById('clearUi').style.display = 'block';
                 
                 setTimeout(() => {
-                    generateDiggingMaze(currentStage); // マップをリセット
-                    isGamePlaying = false;             // 進行フラグをオフ
-                    document.getElementById('startScreen').style.display = 'flex'; // 💡 STARTボタン画面を復活させて待機
+                    generateDiggingMaze(currentStage);
+                    isGamePlaying = false;
+                    document.getElementById('startScreen').style.display = 'flex';
                 }, 1500);
             } else {
-                // ライフが尽きた「GAME OVER」の時
                 document.getElementById('clearUi').innerText = "GAME OVER";
                 document.getElementById('clearUi').style.display = 'block';
-                document.getElementById('retryBtn').style.display = 'block'; // RETRYボタンを出現させてクリックを待つ
+                document.getElementById('retryBtn').style.display = 'block';
             }
         }
     }
 
-    // コインの獲得判定とステージ進行
     function checkCoinCollision() {
-        // 💡【クラッシュ防止】コインデータが完全に存在することを確認するチェック機構
         if (!coins || coins.length === 0) return;
 
         for (let i = coins.length - 1; i >= 0; i--) {
@@ -295,15 +295,14 @@
                         isGameOver = true; isGamePlaying = false;
                         document.getElementById('clearUi').innerText = "ALL CLEAR!!";
                         document.getElementById('clearUi').style.display = 'block';
-                        document.getElementById('retryBtn').style.display = 'block'; // 💡 オールクリア画面のままRETRYボタンを表示
+                        document.getElementById('retryBtn').style.display = 'block';
                     } else {
-                        // 1〜4面クリア時は通常通り次の面へ
                         document.getElementById('clearUi').innerText = "STAGE CLEAR!";
                         document.getElementById('clearUi').style.display = 'block';
                         setTimeout(() => {
                             currentStage++; generateDiggingMaze(currentStage);
                             isGamePlaying = false;
-                            document.getElementById('startScreen').style.display = 'flex'; // 次の面でもSTARTボタンで待機
+                            document.getElementById('startScreen').style.display = 'flex';
                         }, 2000);
                     }
                 }
@@ -316,12 +315,9 @@
     // 4. ゲームメインループ
     function animate() {
         requestAnimationFrame(animate); 
-        
-        // 💡【クラッシュ防止】データ削除時・生成時のアクセスバグを100%防止する安全機構
         if (coins && coins.length > 0) {
             coins.forEach(c => { if(c) c.rotation.z += 0.04; }); 
         }
-        
         enemy.rotation.y += 0.05; enemy.rotation.x += 0.02;
         
         if (isGamePlaying && !isGameOver && !isStageClearing && currentStage > 1) {
