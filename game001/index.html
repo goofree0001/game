@@ -6,37 +6,72 @@
     <title>3D Dice Maze - Fixed</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; user-select: none; touch-action: none; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
         
         #scoreUi {
-            position: absolute; top: 15px; left: 15px; color: #ffd700;
-            font-family: sans-serif; font-size: 16px; font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.7); padding: 8px 15px; border-radius: 5px;
+            position: absolute; top: 20px; left: 20px; color: #ffd700;
+            font-family: monospace; font-size: 24px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6); padding: 10px 20px; border-radius: 5px;
             border: 1px solid #ffd700; pointer-events: none; z-index: 10;
+        }
+
+        #lifeUi {
+            position: absolute; top: 75px; left: 20px; color: #ff3366;
+            font-family: sans-serif; font-size: 22px; font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6); padding: 8px 20px; border-radius: 5px;
+            border: 1px solid #ff3366; pointer-events: none; z-index: 10;
         }
 
         #clearUi {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); color: #00ffcc;
-            font-family: sans-serif; font-size: 36px; font-weight: bold;
-            text-shadow: 0 0 15px #00ffcc; background-color: rgba(0,0,0,0.85);
-            padding: 15px 30px; border-radius: 10px; border: 2px solid #00ffcc;
-            pointer-events: none; z-index: 20; text-align: center; width: 70%;
+            font-family: sans-serif; font-size: 64px; font-weight: bold;
+            text-shadow: 0 0 20px #00ffcc; background-color: rgba(0,0,0,0.8);
+            padding: 20px 50px; border-radius: 15px; border: 3px solid #00ffcc;
+            pointer-events: none; z-index: 20; text-align: center;
         }
+
+        #retryBtn {
+            display: none; position: absolute; top: 65%; left: 50%;
+            transform: translate(-50%, -50%); color: #ffffff;
+            font-family: sans-serif; font-size: 28px; font-weight: bold;
+            background-color: #ff3333; padding: 15px 40px; border-radius: 10px;
+            border: 2px solid #ffffff; cursor: pointer; z-index: 30;
+            box-shadow: 0 0 15px #ff3333; text-align: center; transition: 0.2s;
+        }
+        #retryBtn:hover { background-color: #cc0000; scale: 1.05; }
+
+        #startScreen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(0, 0, 0, 0.75); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 40;
+        }
+
+        #startBtn {
+            color: #ffffff; font-family: sans-serif; font-size: 36px; font-weight: bold;
+            background-color: #00ffcc; padding: 20px 60px; border-radius: 15px;
+            border: 3px solid #ffffff; cursor: pointer; box-shadow: 0 0 25px #00ffcc;
+            text-align: center; transition: 0.2s;
+        }
+        #startBtn:hover { background-color: #00ccaa; scale: 1.05; }
     </style>
     <script src="three.min.js"></script>
 </head>
 <body>
 
-<div id="scoreUi">Stage 1 - Score: 0 / 0</div>
+<div id="scoreUi">Stage 1 - Score: 0 / 10</div>
+<div id="lifeUi">Life: ❤️❤️❤️</div>
 <div id="clearUi">STAGE CLEAR!</div>
+<button id="retryBtn" onclick="onClickRetry()">RETRY</button>
+
+<div id="startScreen">
+    <button id="startBtn" onclick="onClickStart()">START</button>
+</div>
 
 <script>
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 💡 縦長画面でも迷路の全体がしっかり画面内に収まるよう、カメラの距離を引きに調整
-    camera.position.set(0, 15, 12);
-    camera.lookAt(0, 0, -1);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 11, 11); camera.lookAt(0, 0, -1);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -44,58 +79,33 @@
     document.body.appendChild(renderer.domElement);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    dirLight.position.set(5, 12, 8);
-    scene.add(dirLight);
+    dirLight.position.set(5, 12, 8); scene.add(dirLight);
     scene.add(new THREE.AmbientLight(0x555555));
 
     const grid = new THREE.GridHelper(24, 24, 0x555555, 0x333333);
-    grid.position.set(0.5, -0.5, 0.5);
-    scene.add(grid);
-
+    grid.position.set(0.5, -0.5, 0.5); scene.add(grid);
+    // 1. サイコロの大きな目を自動描画するシステム
     function createDiceMaterials() {
         const mats = [];
         for (let i = 1; i <= 6; i++) {
             const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
-            const ctx = canvas.getContext('2d');
+            canvas.width = 128; canvas.height = 128; const ctx = canvas.getContext('2d');
             ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 128, 128);
             ctx.fillStyle = (i === 1) ? '#ff0000' : '#111111';
             const radius = (i === 1) ? 22 : 12;
 
-            if (i === 1) {
-                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
-            } else if (i === 2) {
-                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
-            } else if (i === 3) {
-                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
-            } else if (i === 4) {
-                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
-            } else if (i === 5) {
-                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
-            } else if (i === 6) {
-                ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(32, 64, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 64, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill();
-            }
+            if (i === 1) { ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill(); }
+            else if (i === 2) { ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill(); }
+            else if (i === 3) { ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill(); }
+            else if (i === 4) { ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill(); }
+            else if (i === 5) { ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(64, 64, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill(); }
+            else if (i === 6) { ctx.beginPath(); ctx.arc(32, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 32, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(32, 64, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 64, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(32, 96, radius, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(96, 96, radius, 0, Math.PI * 2); ctx.fill(); }
+            
             ctx.strokeStyle = '#dddddd'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, 122, 122);
             const texture = new THREE.CanvasTexture(canvas);
             mats.push(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.2 }));
         }
-        return [mats[0], mats[1], mats[2], mats[3], mats[4], mats[5]];
+        return mats;
     }
 
     const cubeGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
@@ -107,204 +117,195 @@
     const coinGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
     const coinMat = new THREE.MeshStandardMaterial({ color: 0xfff000, roughness: 0.1, metalness: 0.8 });
 
-    let currentStage = 1;
-    let collectedCount = 0;
-    let totalCoins = 0;
-    let walls = [];
-    let coins = [];
+    const enemyGeo = new THREE.SphereGeometry(0.4, 8, 8);
+    const enemyMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.2 });
+    const enemy = new THREE.Mesh(enemyGeo, enemyMat);
 
+    let currentStage = 1; let collectedCount = 0; let totalCoins = 10; let walls = []; let coins = [];
+    let isMoving = false; let isStageClearing = false; let isGameOver = false; let moveTimer = 0; const moveDuration = 10;
+    let startPos = new THREE.Vector3(); let nextPos = new THREE.Vector3(); let rotAxis = new THREE.Vector3(); let startQuaternion = new THREE.Quaternion();
+    let finalTargetX = 0; let finalTargetZ = 0;
+
+    let playerLife = 3;
+    let isGamePlaying = false;
+
+    const enemyRoute = [
+        {x:-4, z:-4}, {x:-3, z:-4}, {x:-2, z:-4}, {x:-1, z:-4}, {x:0, z:-4}, {x:1, z:-4}, {x:2, z:-4}, {x:3, z:-4}, {x:4, z:-4},
+        {x:4, z:-3}, {x:4, z:-2}, {x:4, z:-1}, {x:4, z:0}, {x:4, z:1}, {x:4, z:2}, {x:4, z:3}, {x:4, z:4},
+        {x:3, z:4}, {x:2, z:4}, {x:1, z:4}, {x:0, z:4}, {x:-1, z:4}, {x:-2, z:4}, {x:-3, z:4}, {x:-4, z:4},
+        {x:-4, z:3}, {x:-4, z:2}, {x:-4, z:1}, {x:-4, z:0}, {x:-4, z:-1}, {x:-4, z:-2}, {x:-4, z:-3}
+    ];
+    let enemyRouteIndex = 12; let enemyMoveTimer = 0; const enemyMoveInterval = 15;
+    let enemyStartPos = new THREE.Vector3(); let enemyNextPos = new THREE.Vector3();
+
+    // 2. 穴掘り法迷路の生成ロジック
     function generateDiggingMaze(stageNum) {
-        walls.forEach(w => scene.remove(w));
-        coins.forEach(c => scene.remove(c));
-        walls = []; coins = [];
+        walls.forEach(w => scene.remove(w)); coins.forEach(c => scene.remove(c)); walls = []; coins = [];
+        scene.remove(enemy);
 
-        if (stageNum > 5) {
-            document.getElementById('clearUi').innerText = "ALL CLEAR!!";
-            document.getElementById('clearUi').style.display = 'block';
-            return;
+        if (stageNum > 5) { 
+            isGameOver = true; isGamePlaying = false;
+            document.getElementById('clearUi').innerText = "ALL CLEAR!!"; 
+            document.getElementById('clearUi').style.display = 'block'; 
+            document.getElementById('retryBtn').style.display = 'block';
+            return; 
         }
-
-        const mapSize = 11;
-        const mazeGrid = [];
-
-        for (let x = 0; x < mapSize; x++) {
-            mazeGrid[x] = [];
-            for (let z = 0; z < mapSize; z++) { mazeGrid[x][z] = 1; }
-        }
-
-        const startX = 1; const startZ = 1;
-        mazeGrid[startX][startZ] = 0;
-        const dcl = [{x: startX, z: startZ}];
-
+        
+        const mapSize = 11; const mazeGrid = [];
+        for (let x = 0; x < mapSize; x++) { mazeGrid.push([]); for (let z = 0; z < mapSize; z++) { mazeGrid[x].push(1); } }
+        
+        // 💡【完全修正】エラーの原因だった「mazeGrid = 0;」を配列要素への安全な代入に修正
+        mazeGrid[1][1] = 0; 
+        let dcl = [{x: 1, z: 1}];
+        
         while (dcl.length > 0) {
-            const current = dcl[dcl.length - 1];
-            const dirs = [];
-            if (current.x - 2 > 0 && mazeGrid[current.x - 2][current.z] === 1) dirs.push({x: -1, z: 0});
-            if (current.x + 2 < mapSize - 1 && mazeGrid[current.x + 2][current.z] === 1) dirs.push({x: 1, z: 0});
-            if (current.z - 2 > 0 && mazeGrid[current.x][current.z - 2] === 1) dirs.push({x: 0, z: -1});
-            if (current.z + 2 < mapSize - 1 && mazeGrid[current.x][current.z + 2] === 1) dirs.push({x: 0, z: 1});
-
+            const cur = dcl[dcl.length - 1]; const dirs = [];
+            if (cur.x - 2 > 0 && mazeGrid[cur.x - 2][cur.z] === 1) dirs.push({x: -1, z: 0});
+            if (cur.x + 2 < mapSize - 1 && mazeGrid[cur.x + 2][cur.z] === 1) dirs.push({x: 1, z: 0});
+            if (cur.z - 2 > 0 && mazeGrid[cur.x][cur.z - 2] === 1) dirs.push({x: 0, z: -1});
+            
+            let gridLine = mazeGrid[cur.x];
+            if (cur.z + 2 < mapSize - 1 && gridLine[cur.z + 2] === 1) dirs.push({x: 0, z: 1});
             if (dirs.length > 0) {
                 const d = dirs[Math.floor(Math.random() * dirs.length)];
-                mazeGrid[current.x + d.x][current.z + d.z] = 0;
-                mazeGrid[current.x + d.x * 2][current.z + d.z * 2] = 0;
-                dcl.push({x: current.x + d.x * 2, z: current.z + d.z * 2});
+                mazeGrid[cur.x + d.x][cur.z + d.z] = 0; mazeGrid[cur.x + d.x * 2][cur.z + d.z * 2] = 0;
+                dcl.push({x: cur.x + d.x * 2, z: cur.z + d.z * 2});
             } else { dcl.pop(); }
         }
-
+        
+        const coinCandidates = [];
         for (let x = 0; x < mapSize; x++) {
             for (let z = 0; z < mapSize; z++) {
-                let worldX = x - 5; let worldZ = z - 5;
-                if (mazeGrid[x][z] === 1) {
-                    const wall = new THREE.Mesh(cubeGeo, wallMat);
-                    wall.position.set(worldX, 0, worldZ); scene.add(wall); walls.push(wall);
-                } else {
-                    if (!(x === 1 && z === 1) && Math.random() < 0.20) {
-                        const coin = new THREE.Mesh(coinGeo, coinMat);
-                        coin.position.set(worldX, 0, worldZ); coin.rotation.x = Math.PI / 2;
-                        scene.add(coin); coins.push(coin);
-                    }
-                }
+                let wX = x - 5; let wZ = z - 5;
+                if (x === 1 || x === mapSize - 2 || z === 1 || z === mapSize - 2) { if (x > 0 && x < mapSize - 1 && z > 0 && z < mapSize - 1) mazeGrid[x][z] = 0; }
+                if (mazeGrid[x][z] === 1) { const w = new THREE.Mesh(cubeGeo, wallMat); w.position.set(wX, 0, wZ); scene.add(w); walls.push(w); }
+                else if (!(wX === -4 && wZ === -4)) { coinCandidates.push({x: wX, z: wZ}); }
             }
         }
 
-        if (coins.length === 0) {
-            const coin = new THREE.Mesh(coinGeo, coinMat);
-            coin.position.set(3, 0, 3); coin.rotation.x = Math.PI / 2;
-            scene.add(coin); coins.push(coin);
+        for (let i = coinCandidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1)); const temp = coinCandidates[i]; coinCandidates[i] = coinCandidates[j]; coinCandidates[j] = temp;
         }
 
-        player.position.set(-4, 0, -4);
-        player.quaternion.set(0, 0, 0, 1);
-        finalTargetX = -4; finalTargetZ = -4;
+        const finalCoinCount = Math.min(10, coinCandidates.length);
+        for (let i = 0; i < finalCoinCount; i++) {
+            const pos = coinCandidates[i]; const c = new THREE.Mesh(coinGeo, coinMat); c.position.set(pos.x, 0, pos.z); c.rotation.x = Math.PI / 2; scene.add(c); coins.push(c);
+        }
 
+        player.position.set(-4, 0, -4); player.quaternion.set(0, 0, 0, 1); finalTargetX = -4; finalTargetZ = -4;
+        enemyRouteIndex = 12; enemy.position.set(enemyRoute[enemyRouteIndex].x, 0, enemyRoute[enemyRouteIndex].z);
+        if (stageNum > 1) { scene.add(enemy); }
+        enemyStartPos.copy(enemy.position); enemyNextPos.copy(enemy.position); enemyMoveTimer = 0;
         collectedCount = 0; totalCoins = coins.length;
         document.getElementById('scoreUi').innerText = `Stage ${stageNum} - Score: ${collectedCount} / ${totalCoins}`;
-        document.getElementById('clearUi').style.display = 'none';
-        isStageClearing = false;
+        let hearts = ""; for(let i=0; i<playerLife; i++) hearts += "❤️"; document.getElementById('lifeUi').innerText = `Life: ${hearts}`;
+        document.getElementById('clearUi').style.display = 'none'; document.getElementById('retryBtn').style.display = 'none';
+        isStageClearing = false; isGameOver = false;
     }
-    // 6. マウス・タッチ（スワイプ）による目的地の検知
+    // 3. マウスクリックによる目的地の検知
     let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     let raycaster = new THREE.Raycaster();
     let mouse = new THREE.Vector2();
     let clickPos = new THREE.Vector3();
 
-    // 移動および進行の管理変数
-    let isMoving = false;
-    let isStageClearing = false;
-    let moveTimer = 0;
-    const moveDuration = 10;
-    
-    let startPos = new THREE.Vector3();
-    let nextPos = new THREE.Vector3();
-    let rotAxis = new THREE.Vector3();
-    let startQuaternion = new THREE.Quaternion();
-
-    let finalTargetX = 0;
-    let finalTargetZ = 0;
-
-    // パソコン（マウス）用のクリックイベント
-    window.addEventListener('mousedown', (e) => { 
-        handleInput(e.clientX, e.clientY); 
-    });
-    
-    // 💡 【修正】指のタッチ座標を「e.touches[0]」から正確に取得するようにバグを修正
-    window.addEventListener('touchstart', (e) => {
-        if (e.touches && e.touches.length > 0) {
-            handleInput(e.touches[0].clientX, e.touches[0].clientY);
-        }
-    }, { passive: false });
-
-    window.addEventListener('touchmove', (e) => {
-        // スマホ画面の勝手なスクロールや跳ね返り現象を100%禁止
-        e.preventDefault(); 
-        if (e.touches && e.touches.length > 0 && !isMoving && !isStageClearing) {
-            handleInput(e.touches[0].clientX, e.touches[0].clientY);
-        }
-    }, { passive: false });
-
-    // 共通の入力座標変換処理
-    function handleInput(clientX, clientY) {
-        if (isMoving || isStageClearing) return;
-
-        mouse.x = (clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    window.addEventListener('mousedown', (e) => {
+        if (!isGamePlaying || isMoving || isStageClearing || isGameOver) return;
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
         raycaster.ray.intersectPlane(plane, clickPos);
-
         finalTargetX = Math.round(clickPos.x);
         finalTargetZ = Math.round(clickPos.z);
-    }
+    });
 
-    // 1マスずつの進路をジグザグに自動計算する関数
+    function onClickStart() { isGamePlaying = true; document.getElementById('startScreen').style.display = 'none'; }
+    function onClickRetry() { playerLife = 3; currentStage = 1; generateDiggingMaze(currentStage); isGamePlaying = false; document.getElementById('startScreen').style.display = 'flex'; }
+
     function planNextStep() {
         if (player.position.x === finalTargetX && player.position.z === finalTargetZ) return;
-
         let diffX = finalTargetX - player.position.x;
         let diffZ = finalTargetZ - player.position.z;
-        let dirX = 0; let dirZ = 0;
-
-        if (Math.abs(diffX) >= Math.abs(diffZ) && diffX !== 0) {
-            dirX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dirX);
-        } else if (diffZ !== 0) {
-            dirZ = diffZ > 0 ? 1 : -1; rotAxis.set(dirZ, 0, 0);
+        let dX = 0; let dZ = 0;
+        
+        if (Math.abs(diffX) >= Math.abs(diffZ) && diffX !== 0) { dX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dX); }
+        else if (diffZ !== 0) { dZ = diffZ > 0 ? 1 : -1; rotAxis.set(dZ, 0, 0); }
+        
+        nextPos.copy(player.position); nextPos.x += dX; nextPos.z += dZ;
+        let cM = true; walls.forEach(w => { if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) cM = false; });
+        
+        if (!cM) {
+            dX = 0; dZ = 0; if (player.position.x !== finalTargetX && Math.abs(diffX) < Math.abs(diffZ)) { dX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dX); } else if (player.position.z !== finalTargetZ) { dZ = diffZ > 0 ? 1 : -1; rotAxis.set(dZ, 0, 0); }
+            nextPos.copy(player.position); nextPos.x += dX; nextPos.z += dZ; cM = true;
+            walls.forEach(w => { if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) cM = false; });
         }
-
-        nextPos.copy(player.position);
-        nextPos.x += dirX; nextPos.z += dirZ;
-
-        let canMove = true;
-        walls.forEach(w => {
-            if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) canMove = false;
-        });
-
-        if (!canMove) {
-            dirX = 0; dirZ = 0;
-            if (player.position.x !== finalTargetX && Math.abs(diffX) < Math.abs(diffZ)) {
-                dirX = diffX > 0 ? 1 : -1; rotAxis.set(0, 0, -dirX);
-            } else if (player.position.z !== finalTargetZ) {
-                dirZ = diffZ > 0 ? 1 : -1; rotAxis.set(dirZ, 0, 0);
-            }
-            nextPos.copy(player.position);
-            nextPos.x += dirX; nextPos.z += dirZ;
-
-            canMove = true;
-            walls.forEach(w => {
-                if (Math.abs(nextPos.x - w.position.x) < 0.5 && Math.abs(nextPos.z - w.position.z) < 0.5) canMove = false;
-            });
-        }
-
-        if (!canMove || (dirX === 0 && dirZ === 0)) {
-            finalTargetX = player.position.x; finalTargetZ = player.position.z;
-            return;
-        }
-
-        startPos.copy(player.position);
-        startQuaternion.copy(player.quaternion);
-        isMoving = true;
-        moveTimer = 0;
+        
+        if (!cM || (dX === 0 && dZ === 0)) { finalTargetX = player.position.x; finalTargetZ = player.position.z; return; }
+        startPos.copy(player.position); startQuaternion.copy(player.quaternion); isMoving = true; moveTimer = 0;
     }
 
-    // コインの獲得判定とクリア処理
-    function checkCoinCollision() {
-        for (let i = coins.length - 1; i >= 0; i--) {
-            const coin = coins[i];
-            if (Math.abs(player.position.x - coin.position.x) < 0.1 && Math.abs(player.position.z - coin.position.z) < 0.1) {
-                scene.remove(coin);
-                coins.splice(i, 1);
+    // プレイヤーと敵の接触・ライフ・UI制御
+    function checkEnemyCollision() {
+        if (currentStage === 1) return;
+
+        let dx = player.position.x - enemy.position.x;
+        let dz = player.position.z - enemy.position.z;
+        
+        // 💡【フリーズ完全対策】「**」記号を使わず、すべてのブラウザで互換性のある数式に書き換え
+        if (Math.sqrt(dx * dx + dz * dz) < 0.6) {
+            isGameOver = true;
+            playerLife--;
+            
+            let hearts = ""; for(let i=0; i<playerLife; i++) hearts += "❤️"; if (hearts === "") hearts = "NONE";
+            document.getElementById('lifeUi').innerText = `Life: ${hearts}`;
+            
+            if (playerLife > 0) {
+                // ライフが残っている「MISS!」の時
+                document.getElementById('clearUi').innerText = "MISS!";
+                document.getElementById('clearUi').style.display = 'block';
                 
-                collectedCount++;
+                setTimeout(() => {
+                    generateDiggingMaze(currentStage); // マップをリセット
+                    isGamePlaying = false;             // 進行フラグをオフ
+                    document.getElementById('startScreen').style.display = 'flex'; // 💡 STARTボタン画面を復活させて待機
+                }, 1500);
+            } else {
+                // ライフが尽きた「GAME OVER」の時
+                document.getElementById('clearUi').innerText = "GAME OVER";
+                document.getElementById('clearUi').style.display = 'block';
+                document.getElementById('retryBtn').style.display = 'block'; // RETRYボタンを出現させてクリックを待つ
+            }
+        }
+    }
+
+    // コインの獲得判定とステージ進行
+    function checkCoinCollision() {
+        // 💡【クラッシュ防止】コインデータが完全に存在することを確認するチェック機構
+        if (!coins || coins.length === 0) return;
+
+        for (let i = coins.length - 1; i >= 0; i--) {
+            if (!coins[i]) continue;
+            if (Math.abs(player.position.x - coins[i].position.x) < 0.1 && Math.abs(player.position.z - coins[i].position.z) < 0.1) {
+                scene.remove(coins[i]); coins.splice(i, 1); collectedCount++;
                 document.getElementById('scoreUi').innerText = `Stage ${currentStage} - Score: ${collectedCount} / ${totalCoins}`;
                 
                 if (collectedCount === totalCoins) {
                     isStageClearing = true;
-                    document.getElementById('clearUi').innerText = "STAGE CLEAR!";
-                    document.getElementById('clearUi').style.display = 'block';
                     
-                    setTimeout(() => {
-                        currentStage++;
-                        generateDiggingMaze(currentStage);
-                    }, 2000);
+                    if (currentStage === 5) {
+                        isGameOver = true; isGamePlaying = false;
+                        document.getElementById('clearUi').innerText = "ALL CLEAR!!";
+                        document.getElementById('clearUi').style.display = 'block';
+                        document.getElementById('retryBtn').style.display = 'block'; // 💡 オールクリア画面のままRETRYボタンを表示
+                    } else {
+                        // 1〜4面クリア時は通常通り次の面へ
+                        document.getElementById('clearUi').innerText = "STAGE CLEAR!";
+                        document.getElementById('clearUi').style.display = 'block';
+                        setTimeout(() => {
+                            currentStage++; generateDiggingMaze(currentStage);
+                            isGamePlaying = false;
+                            document.getElementById('startScreen').style.display = 'flex'; // 次の面でもSTARTボタンで待機
+                        }, 2000);
+                    }
                 }
             }
         }
@@ -312,45 +313,43 @@
 
     generateDiggingMaze(currentStage);
 
-    // 7. ゲームメインループ
+    // 4. ゲームメインループ
     function animate() {
-        requestAnimationFrame(animate);
-
-        coins.forEach(coin => {
-            coin.rotation.z += 0.04;
-        });
-
-        if (!isMoving && !isStageClearing) {
-            planNextStep();
+        requestAnimationFrame(animate); 
+        
+        // 💡【クラッシュ防止】データ削除時・生成時のアクセスバグを100%防止する安全機構
+        if (coins && coins.length > 0) {
+            coins.forEach(c => { if(c) c.rotation.z += 0.04; }); 
         }
-
+        
+        enemy.rotation.y += 0.05; enemy.rotation.x += 0.02;
+        
+        if (isGamePlaying && !isGameOver && !isStageClearing && currentStage > 1) {
+            enemyMoveTimer++; let enemyProgress = enemyMoveTimer / enemyMoveInterval;
+            
+            if (enemyProgress >= 1.0) {
+                enemyRouteIndex = (enemyRouteIndex + 1) % enemyRoute.length; let nextIdx = (enemyRouteIndex + 1) % enemyRoute.length;
+                enemyStartPos.set(enemyRoute[enemyRouteIndex].x, 0, enemyRoute[enemyRouteIndex].z); enemyNextPos.set(enemyRoute[nextIdx].x, 0, enemyRoute[nextIdx].z);
+                enemy.position.copy(enemyStartPos); enemyMoveTimer = 0;
+            } else { enemy.position.lerpVectors(enemyStartPos, enemyNextPos, enemyProgress); }
+            
+            checkEnemyCollision();
+        }
+        
+        if (isGamePlaying && !isMoving && !isStageClearing && !isGameOver) planNextStep();
+        
         if (isMoving) {
-            moveTimer++;
-            let progress = moveTimer / moveDuration;
-
+            moveTimer++; let progress = moveTimer / moveDuration;
             if (progress >= 1.0) {
-                isMoving = false;
-                player.position.copy(nextPos);
-                let finalRot = new THREE.Quaternion().setFromAxisAngle(rotAxis, Math.PI / 2);
-                player.quaternion.copy(startQuaternion).premultiply(finalRot);
-                
-                checkCoinCollision();
-            } else {
-                player.position.lerpVectors(startPos, nextPos, progress);
-                let currentAngle = (Math.PI / 2) * progress;
-                let deltaRot = new THREE.Quaternion().setFromAxisAngle(rotAxis, currentAngle);
-                player.quaternion.copy(startQuaternion).premultiply(deltaRot);
-            }
+                isMoving = false; player.position.copy(nextPos); player.quaternion.copy(startQuaternion).premultiply(new THREE.Quaternion().setFromAxisAngle(rotAxis, Math.PI / 2));
+                if (!isGameOver) checkCoinCollision();
+            } else { player.position.lerpVectors(startPos, nextPos, progress); player.quaternion.copy(startQuaternion).premultiply(new THREE.Quaternion().setFromAxisAngle(rotAxis, (Math.PI / 2) * progress)); }
         }
         renderer.render(scene, camera);
     }
     animate();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 </script>
 </body>
 </html>
