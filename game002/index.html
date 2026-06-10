@@ -2,15 +2,26 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Three.js 3Dカーゲーム - 製品版</title>
+    <!-- スマホでの拡大縮小を禁止し、アプリのように快適に操作するためのビューポート設定 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <title>Three.js 3Dカーゲーム - スマホ・PC完全対応版</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
+        /* スマホ独特のスクロールバウンスや誤作動、青い選択ハイライトを完全にブロック */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #1a1a1a; 
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none; 
+        }
         
         /* ゲームとしてのスコア・ステージ表示UI */
         #score-ui {
             position: absolute;
             top: 20px;
-            left: 20px; /* デバッグUIが消えたため、左端に寄せて美しく配置 */
+            left: 20px;
             background: rgba(255, 204, 0, 0.9);
             color: #1a1a1a;
             padding: 10px 20px;
@@ -42,7 +53,7 @@
             text-align: center;
         }
 
-        /* 専用リトライボタンのデザイン */
+        /* 専用リトライボタン */
         #retry-btn {
             background: #ffff00; color: #1a1a1a; border: none; padding: 10px 30px;
             font-family: 'Arial Black', sans-serif; font-size: 18px; font-weight: bold;
@@ -98,8 +109,6 @@
     </script>
 </head>
 <body>
-
-    <!-- ★修正：緑色のデバッグUI要素をHTMLから完全に消去しました -->
 
     <div id="score-ui">
         <span id="stage-txt">STAGE: 1</span> &nbsp;|&nbsp; SCORE: <span id="score-val">0</span> / 10
@@ -223,14 +232,14 @@
         // 敵パトカー用の物理変数
         let enemyCar = null;
         let enemySpeed = 0;
-        let enemyMaxSpeed = 0.30; 
+        const enemyMaxSpeed = 0.30; 
 
         const raycaster = new THREE.Raycaster(); 
         const mouse = new THREE.Vector2();       
         const targetPosition = new THREE.Vector3(); 
         let car = null; 
 
-        // 7. 独立した非同期ローダー処理（製品版：フリーズ対策を維持）
+        // 7. 独立した非同期ローダー処理（★修正：提示いただいた正しいローカルパスを適用）
         const loader = new GLTFLoader();
         const playerPath = './kenney_car-kit/Models/GLB format/sedan-sports.glb';
         const policePath = './kenney_car-kit/Models/GLB format/police.glb';
@@ -267,7 +276,6 @@
         document.getElementById('retry-btn').addEventListener('click', (e) => {
             e.stopPropagation(); 
 
-            // 1. 各種ゲームフラグ・スコアをSTAGE 1の初期状態にリセット
             isGameOver = false;
             isStageReady = true;
             currentStage = 1;
@@ -277,7 +285,6 @@
             hasTarget = false;
             enemyMaxSpeed = 0.30; 
 
-            // 2. プレイヤーと敵の位置・向きを初期位置へ完全巻き戻し
             if (car) {
                 car.position.set(0, 0, 0);
                 car.rotation.y = 0;
@@ -288,25 +295,22 @@
                 enemyCar.rotation.y = 0;
             }
 
-            // 3. 画面上のUI表示をSTAGE 1表示へと更新
             document.getElementById('stage-txt').innerText = "STAGE: 1";
             document.getElementById('score-val').innerText = "0";
             document.getElementById('stage-title').innerText = "STAGE 1";
             
-            // 4. ゲームオーバー画面を隠し、スタート待機画面を再び表示
             document.getElementById('gameover-ui').style.display = 'none';
             document.getElementById('start-ui').style.display = 'flex';
 
-            // 5. 旗をランダムな位置に再配置
             spawnFlags();
         });
 
-        // 8. クリック・タップイベントのバインド
-        window.addEventListener('pointerdown', (e) => {
+        // ★新機能：スマホ・PCの入力を統合して処理する共通関数
+        function updateTargetFromInput(clientX, clientY) {
             if (isGameOver || isStageReady) return;
 
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
 
@@ -318,6 +322,7 @@
                     if (car) {
                         const clickDist = car.position.distanceTo(hitPoint);
                         
+                        // 近距離スピン・逆走防止
                         if (speed < 0.05 && clickDist < 3.5) {
                             hasTarget = true;
                             targetPosition.copy(car.position);
@@ -341,6 +346,29 @@
                     }
                 }
             }
+        }
+
+        // 8. ★新機能：スマホとPCのマルチタッチ・ドラッグ対応イベントバインド
+        let isInputActive = false; // 押しっぱなし状態の管理
+
+        // 画面がタッチ（クリック）された瞬間
+        window.addEventListener('pointerdown', (e) => {
+            isInputActive = true;
+            updateTargetFromInput(e.clientX, e.clientY);
+        });
+
+        // 画面に指（マウス）を置いたままグリグリ動かしたとき（ドラッグ追従）
+        window.addEventListener('pointermove', (e) => {
+            if (!isInputActive) return;
+            updateTargetFromInput(e.clientX, e.clientY);
+        });
+
+        // 画面から指（マウス）が離れたとき
+        window.addEventListener('pointerup', () => {
+            isInputActive = false;
+        });
+        window.addEventListener('pointercancel', () => {
+            isInputActive = false;
         });
         // 旗の当たり判定（回収）＆自動ステージ進行システム
         function checkFlagCollisions() {
@@ -563,8 +591,6 @@
 
                 camera.position.lerp(targetCameraPos, 0.1);
                 camera.lookAt(car.position.x, car.position.y + 1, car.position.z);
-                
-                // ★修正：緑色のデバッグテキストUIを書き換えるコードを完全に消去しました
             }
 
             renderer.render(scene, camera);
