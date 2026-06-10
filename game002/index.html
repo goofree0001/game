@@ -2,31 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Three.js 3Dカーゲーム - 静止時その場旋回版</title>
+    <title>Three.js 3Dカーゲーム - 製品版</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
         
-        /* 状態表示用のデバッグUI */
-        #debug-ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff00;
-            padding: 15px;
-            font-family: monospace;
-            font-size: 14px;
-            border-radius: 5px;
-            border: 1px solid #00ff00;
-            z-index: 100;
-            pointer-events: none;
-        }
-
-        /* ゲームとしてのスコア表示UI */
+        /* ゲームとしてのスコア・ステージ表示UI */
         #score-ui {
             position: absolute;
             top: 20px;
-            left: 240px;
+            left: 20px; /* デバッグUIが消えたため、左端に寄せて美しく配置 */
             background: rgba(255, 204, 0, 0.9);
             color: #1a1a1a;
             padding: 10px 20px;
@@ -38,6 +22,56 @@
             z-index: 100;
             pointer-events: none;
         }
+
+        /* ゲームオーバー表示UI */
+        #gameover-ui {
+            display: none; 
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.95);
+            color: #ffffff;
+            padding: 30px 60px;
+            font-family: 'Arial Black', sans-serif;
+            font-size: 40px;
+            font-weight: bold;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            z-index: 200;
+            text-align: center;
+        }
+
+        /* 専用リトライボタンのデザイン */
+        #retry-btn {
+            background: #ffff00; color: #1a1a1a; border: none; padding: 10px 30px;
+            font-family: 'Arial Black', sans-serif; font-size: 18px; font-weight: bold;
+            border-radius: 5px; cursor: pointer; margin-top: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s;
+        }
+        #retry-btn:hover { transform: scale(1.05); }
+
+        /* 面スタート時のオーバーレイ画面 */
+        #start-ui {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 300;
+        }
+
+        #stage-title {
+            color: #ffcc00; font-family: 'Arial Black', sans-serif; font-size: 48px; margin-bottom: 20px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        #start-btn {
+            background: #00ff00; color: #1a1a1a; border: none; padding: 15px 40px;
+            font-family: 'Arial Black', sans-serif; font-size: 24px; font-weight: bold;
+            border-radius: 5px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,255,0,0.4);
+            transition: transform 0.1s;
+        }
+        #start-btn:hover { transform: scale(1.05); }
 
         /* レーダー（ミニマップ） */
         #radar {
@@ -54,7 +88,6 @@
             z-index: 10;
         }
     </style>
-    
     <script type="importmap">
       {
         "imports": {
@@ -66,19 +99,20 @@
 </head>
 <body>
 
-    <!-- 画面表示用のHTML要素 -->
-    <div id="debug-ui">
-        【ゲーム状態デバッグ】<br>
-        車の読み込み: <span id="db-car">読み込み開始...</span><br>
-        クリック検知: <span id="db-click">なし</span><br>
-        目標位置(X, Z): <span id="db-target">未設定</span><br>
-        現在速度: <span id="db-speed">0.00</span><br>
-        移動フラグ: <span id="db-flag">false</span>
+    <!-- ★修正：緑色のデバッグUI要素をHTMLから完全に消去しました -->
+
+    <div id="score-ui">
+        <span id="stage-txt">STAGE: 1</span> &nbsp;|&nbsp; SCORE: <span id="score-val">0</span> / 10
     </div>
 
-    <!-- スコアボード -->
-    <div id="score-ui">
-        SCORE: <span id="score-val">0</span> / 10
+    <div id="gameover-ui">
+        GAME OVER<br>
+        <button id="retry-btn">RETRY</button>
+    </div>
+
+    <div id="start-ui">
+        <div id="stage-title">STAGE 1</div>
+        <button id="start-btn">START</button>
     </div>
 
     <div id="radar">
@@ -105,6 +139,7 @@
         const radarCanvas = document.getElementById('radarCanvas');
         const radarCtx = radarCanvas.getContext('2d');
         let currentRadarRange = 500; 
+        const radarRange = 500;
 
         // 3. ライトの設定
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -125,21 +160,18 @@
         const gridHelper = new THREE.GridHelper(floorSize, 200, 0xffffff, 0x555555);
         scene.add(gridHelper);
 
-        // 5. 三角形の平たい旗（フラッグ）をランダムに10個配置
+        // 5. 三角形の平たい旗（フラッグ）をランダムに配置する関数
         let flags = []; 
         const numFlags = 10;
         
         function createFlagGroup() {
             const group = new THREE.Group();
-            
-            // ① 旗の棒（黄色）
             const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 3, 8);
             const poleMat = new THREE.MeshStandardMaterial({ color: 0xffff00, roughness: 0.4 });
             const pole = new THREE.Mesh(poleGeo, poleMat);
             pole.position.y = 1.5; 
             group.add(pole);
 
-            // ② 旗の布（三角形）
             const triangleShape = new THREE.Shape();
             triangleShape.moveTo(0, 0);       
             triangleShape.lineTo(1.2, -0.4);  
@@ -160,103 +192,159 @@
             return group;
         }
 
-        for (let i = 0; i < numFlags; i++) {
-            const flagMesh = createFlagGroup();
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 50 + Math.random() * 300; 
-            flagMesh.position.x = Math.cos(angle) * distance;
-            flagMesh.position.z = Math.sin(angle) * distance;
-            flagMesh.position.y = 0;
-            flagMesh.rotation.y = Math.random() * Math.PI * 2;
-            scene.add(flagMesh);
-            flags.push(flagMesh); 
+        function spawnFlags() {
+            flags.forEach(flag => scene.remove(flag));
+            flags = [];
+
+            for (let i = 0; i < numFlags; i++) {
+                const flagMesh = createFlagGroup();
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 50 + Math.random() * 300; 
+                flagMesh.position.x = Math.cos(angle) * distance;
+                flagMesh.position.z = Math.sin(angle) * distance;
+                flagMesh.position.y = 0;
+                flagMesh.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(flagMesh);
+                flags.push(flagMesh); 
+            }
         }
+
+        spawnFlags();
         // 6. 操作・物理・ゲーム性のグローバル変数
         let speed = 0;
         const maxSpeed = 0.6;       
         const friction = 0.95;      
         let hasTarget = false;       
         let score = 0; 
-        
+        let isGameOver = false; 
+        let currentStage = 1; 
+        let isStageReady = true; 
+
+        // 敵パトカー用の物理変数
+        let enemyCar = null;
+        let enemySpeed = 0;
+        let enemyMaxSpeed = 0.30; 
+
         const raycaster = new THREE.Raycaster(); 
         const mouse = new THREE.Vector2();       
         const targetPosition = new THREE.Vector3(); 
         let car = null; 
 
-        // 7. 車の読み込みとゲームの起動処理
+        // 7. 独立した非同期ローダー処理（製品版：フリーズ対策を維持）
         const loader = new GLTFLoader();
-        const modelPath = './kenney_car-kit/Models/GLB format/sedan-sports.glb';
+        const playerPath = '/kenney_car-kit/Models/GLB format/sedan-sports.glb';
+        const policePath = '/kenney_car-kit/Models/GLB format/police.glb';
 
-        loader.load(modelPath, (gltf) => {
+        // プレイヤー車の読み込み
+        loader.load(playerPath, (gltf) => {
             car = gltf.scene;
             car.position.set(0, 0, 0);
-            car.rotation.y = 0; 
+            car.rotation.y = 0;
             scene.add(car);
-            
             targetPosition.copy(car.position);
-
-            document.getElementById('db-car').innerText = "完了 (成功)";
-            document.getElementById('db-car').style.color = "#00ff00";
-
-            initGame();
-        }, undefined, (error) => {
-            document.getElementById('db-car').innerText = "読み込み失敗";
-            document.getElementById('db-car').style.color = "#ff0000";
-            console.error(error);
+        }, undefined, (err) => {
+            console.error("Player load error:", err);
         });
 
-        // 8. ゲーム開始処理
-        function initGame() {
-            window.addEventListener('mousedown', (e) => {
-                document.getElementById('db-click').innerText = "検知！ (" + e.clientX + ", " + e.clientY + ")";
+        // 敵パトカーの読み込み
+        loader.load(policePath, (gltf) => {
+            enemyCar = gltf.scene;
+            enemyCar.position.set(0, 0, 50); 
+            enemyCar.rotation.y = 0;
+            scene.add(enemyCar);
+        }, undefined, (err) => {
+            console.error("Police load error:", err);
+        });
 
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        // STARTボタンがクリックされた時の処理
+        document.getElementById('start-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            isStageReady = false; 
+            document.getElementById('start-ui').style.display = 'none';
+        });
 
-                raycaster.setFromCamera(mouse, camera);
-                
-                if (floor) {
-                    const planeTarget = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); 
-                    const hitPoint = new THREE.Vector3();
-                    
-                    if (raycaster.ray.intersectPlane(planeTarget, hitPoint)) {
-                        const clickDist = car ? car.position.distanceTo(hitPoint) : 999;
+        // RETRYボタンがクリックされた時の完全初期化リセット処理
+        document.getElementById('retry-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); 
+
+            // 1. 各種ゲームフラグ・スコアをSTAGE 1の初期状態にリセット
+            isGameOver = false;
+            isStageReady = true;
+            currentStage = 1;
+            score = 0;
+            speed = 0;
+            enemySpeed = 0;
+            hasTarget = false;
+            enemyMaxSpeed = 0.30; 
+
+            // 2. プレイヤーと敵の位置・向きを初期位置へ完全巻き戻し
+            if (car) {
+                car.position.set(0, 0, 0);
+                car.rotation.y = 0;
+                targetPosition.copy(car.position);
+            }
+            if (enemyCar) {
+                enemyCar.position.set(0, 0, 50);
+                enemyCar.rotation.y = 0;
+            }
+
+            // 3. 画面上のUI表示をSTAGE 1表示へと更新
+            document.getElementById('stage-txt').innerText = "STAGE: 1";
+            document.getElementById('score-val').innerText = "0";
+            document.getElementById('stage-title').innerText = "STAGE 1";
+            
+            // 4. ゲームオーバー画面を隠し、スタート待機画面を再び表示
+            document.getElementById('gameover-ui').style.display = 'none';
+            document.getElementById('start-ui').style.display = 'flex';
+
+            // 5. 旗をランダムな位置に再配置
+            spawnFlags();
+        });
+
+        // 8. クリック・タップイベントのバインド
+        window.addEventListener('pointerdown', (e) => {
+            if (isGameOver || isStageReady) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            if (floor) {
+                const planeTarget = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const hitPoint = new THREE.Vector3();
+
+                if (raycaster.ray.intersectPlane(planeTarget, hitPoint)) {
+                    if (car) {
+                        const clickDist = car.position.distanceTo(hitPoint);
                         
-                        // ★修正ポイント①：車がほぼ静止状態のときのクリック判定
-                        if (speed < 0.05) {
-                            if (clickDist < 3.5) {
-                                // 足元クリックなら移動せず完全に目的地を現在地にリセット
-                                hasTarget = true; 
-                                targetPosition.copy(car.position);
-                            } else {
-                                // 止まっている状態で離れた後ろなどをクリックされた場合
-                                // 目的地は更新するが、hasTargetフラグを維持して移動ループへ
-                                targetPosition.copy(hitPoint); 
-                                hasTarget = true; 
-                            }
+                        if (speed < 0.05 && clickDist < 3.5) {
+                            hasTarget = true;
+                            targetPosition.copy(car.position);
                         } else {
-                            // 走っているときの通常のクリック処理
-                            if (clickDist < 3.5) {
-                                hasTarget = true; 
-                                targetPosition.copy(car.position);
+                            const diffX = hitPoint.x - car.position.x;
+                            const diffZ = hitPoint.z - car.position.z;
+                            const targetAngle = Math.atan2(diffX, diffZ);
+                            let angleDiff = targetAngle - car.rotation.y;
+                            angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+
+                            if (Math.abs(angleDiff) > Math.PI / 2) {
+                                hasTarget = false;
                             } else {
-                                targetPosition.copy(hitPoint); 
-                                hasTarget = true; 
+                                targetPosition.copy(hitPoint);
+                                hasTarget = true;
                             }
                         }
-                        
-                        document.getElementById('db-target').innerText = 
-                            "X: " + targetPosition.x.toFixed(2) + ", Z: " + targetPosition.z.toFixed(2);
+                    } else {
+                        targetPosition.copy(hitPoint);
+                        hasTarget = true;
                     }
                 }
-            });
-
-            animate();
-        }
-
-        // 旗の当たり判定（回収）システム
+            }
+        });
+        // 旗の当たり判定（回収）＆自動ステージ進行システム
         function checkFlagCollisions() {
-            if (!car) return;
+            if (!car || isGameOver || isStageReady) return;
 
             for (let i = flags.length - 1; i >= 0; i--) {
                 const flag = flags[i];
@@ -278,6 +366,79 @@
                     document.getElementById('score-val').innerText = score;
                 }
             }
+
+            // すべての旗（10個）を集めきったら次の面へ移行
+            if (flags.length === 0 && score >= 10) {
+                currentStage++; 
+                score = 0;       
+                
+                // パトカーをスピードアップ
+                enemyMaxSpeed += 0.03; 
+
+                // 物理変数と移動フラグの完全停止・リセット
+                speed = 0;
+                enemySpeed = 0;
+                hasTarget = false;
+
+                // プレイヤー（自分）の位置と向きを原点(0,0,0)にリセット
+                if (car) {
+                    car.position.set(0, 0, 0);
+                    car.rotation.y = 0;
+                    targetPosition.copy(car.position); 
+                }
+
+                // 敵パトカーの位置をプレイヤーの50マス真後ろ(0,0,50)に完全固定リセット
+                if (enemyCar) {
+                    enemyCar.position.set(0, 0, 50);
+                    enemyCar.rotation.y = 0;
+                }
+
+                // 面スタート待機状態（ポーズ）にする
+                isStageReady = true;
+
+                // 画面上のUIテキストを更新し、スタート画面を再度表示する
+                document.getElementById('stage-txt').innerText = "STAGE: " + currentStage;
+                document.getElementById('score-val').innerText = score;
+                
+                document.getElementById('stage-title').innerText = "STAGE " + currentStage;
+                document.getElementById('start-ui').style.display = 'flex';
+
+                // 新しい面に向け、ランダムな場所に10個の旗を再配置
+                spawnFlags();
+            }
+        }
+
+        // 敵パトカーのAI追跡＆衝突判定システム
+        function updateEnemyAI() {
+            if (!enemyCar || !car || isGameOver || isStageReady) return;
+
+            const edx = car.position.x - enemyCar.position.x;
+            const edz = car.position.z - enemyCar.position.z;
+            const distanceToPlayer = Math.sqrt(edx * edx + edz * edz);
+
+            if (distanceToPlayer < 3.5) {
+                isGameOver = true;
+                speed = 0;
+                enemySpeed = 0;
+                hasTarget = false;
+                document.getElementById('gameover-ui').style.display = 'block';
+                return;
+            }
+
+            const targetEnemyAngle = Math.atan2(edx, edz);
+            let enemyAngleDiff = targetEnemyAngle - enemyCar.rotation.y;
+            enemyAngleDiff = Math.atan2(Math.sin(enemyAngleDiff), Math.cos(enemyAngleDiff));
+            enemyCar.rotation.y += enemyAngleDiff * 0.08;
+
+            if (distanceToPlayer > 10) {
+                enemySpeed += (enemyMaxSpeed - enemySpeed) * 0.03;
+            } else {
+                enemySpeed += (enemyMaxSpeed * 0.7 - enemySpeed) * 0.05;
+            }
+
+            const enemyDirection = new THREE.Vector3(0, 0, 1);
+            enemyDirection.applyQuaternion(enemyCar.quaternion);
+            enemyCar.position.addScaledVector(enemyDirection, enemySpeed);
         }
 
         // 9. レーダーの描画システム
@@ -287,48 +448,56 @@
             const cx = 75;
             const cy = 75;
 
-            let minDistance = 500; 
+            let minDistance = 500;
 
             flags.forEach(flag => {
                 const dx = flag.position.x - car.position.x;
                 const dz = flag.position.z - car.position.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                }
+                if (dist < minDistance) minDistance = dist;
             });
 
             let targetRange = 500;
-            const zoomStartDistance = 180.0; 
-            
+            const zoomStartDistance = 180.0;
             if (minDistance < zoomStartDistance) {
                 targetRange = 80 + (minDistance / zoomStartDistance) * (500 - 80);
             }
-
             currentRadarRange += (targetRange - currentRadarRange) * 0.1;
 
             const inverseCarMatrix = new THREE.Matrix4().copy(car.matrixWorld).invert();
 
+            // 黄色の旗を描画
             flags.forEach(flag => {
                 const localFlagPos = flag.position.clone().applyMatrix4(inverseCarMatrix);
-                const rx = localFlagPos.x;
-                const rz = localFlagPos.z;
-
-                const radarX = cx - (rx / currentRadarRange) * 75;
-                const radarY = cy - (rz / currentRadarRange) * 75; 
-                
+                const radarX = cx - (localFlagPos.x / currentRadarRange) * 75;
+                const radarY = cy - (localFlagPos.z / currentRadarRange) * 75;
                 const distFromCenter = Math.sqrt((radarX - cx) ** 2 + (radarY - cy) ** 2);
                 if (distFromCenter < 73) {
                     radarCtx.beginPath();
                     radarCtx.arc(radarX, radarY, 4, 0, Math.PI * 2);
-                    radarCtx.fillStyle = '#ffff00'; 
+                    radarCtx.fillStyle = '#ffff00';
                     radarCtx.fill();
                 }
             });
 
+            // 敵パトカーを青色のドットで描画
+            if (enemyCar && !isGameOver) {
+                const localEnemyPos = enemyCar.position.clone().applyMatrix4(inverseCarMatrix);
+                const enemyRadarX = cx - (localEnemyPos.x / currentRadarRange) * 75;
+                const enemyRadarY = cy - (localEnemyPos.z / currentRadarRange) * 75;
+                const enemyDistFromCenter = Math.sqrt((enemyRadarX - cx) ** 2 + (enemyRadarY - cy) ** 2);
+                if (enemyDistFromCenter < 73) {
+                    radarCtx.beginPath();
+                    radarCtx.arc(enemyRadarX, enemyRadarY, 5, 0, Math.PI * 2);
+                    radarCtx.fillStyle = '#0066ff';
+                    radarCtx.fill();
+                }
+            }
+
+            // 自車（プレイヤー）の描画
             radarCtx.beginPath();
             radarCtx.arc(cx, cy, 5, 0, Math.PI * 2);
-            radarCtx.fillStyle = '#ffffff'; 
+            radarCtx.fillStyle = '#ffffff';
             radarCtx.fill();
 
             radarCtx.beginPath();
@@ -344,7 +513,7 @@
             if (car) {
                 car.updateMatrixWorld();
 
-                if (hasTarget) {
+                if (hasTarget && !isGameOver && !isStageReady) {
                     const diffX = targetPosition.x - car.position.x;
                     const diffZ = targetPosition.z - car.position.z;
                     const distanceToTarget = Math.sqrt(diffX * diffX + diffZ * diffZ);
@@ -355,28 +524,19 @@
                     let angleDiff = targetAngle - car.rotation.y;
                     angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
 
-                    // ★修正ポイント②：目的地が超近距離（車の下や足元など）の場合
                     if (distanceToTarget <= stopDistanceThreshold) {
-                        // 旋回計算だけを走らせて車の向きをピタッと合わせる
-                        car.rotation.y += angleDiff * 0.1; 
-                        
-                        // 位置の移動は完全にストップ（アクセルをカット）
-                        speed *= 0.5; 
+                        car.rotation.y += angleDiff * 0.1;
+                        speed *= 0.5;
                         if (speed < 0.01 && Math.abs(angleDiff) < 0.05) {
                             speed = 0;
-                            hasTarget = false; // 向きも完全に合わさったら自動移動モードを解除
+                            hasTarget = false;
                         }
                     } else {
-                        // 目的地が通常の遠い場所の場合
-                        car.rotation.y += angleDiff * 0.1; 
-
-                        // 進行方向の角度のズレをチェック
+                        car.rotation.y += angleDiff * 0.1;
                         if (Math.abs(angleDiff) > 0.6) {
-                            // 角度のズレが大きい（真後ろなど）ときは、その場でまずは旋回を優先（前進しない）
-                            speed *= 0.7; 
+                            speed *= 0.7;
                         } else {
-                            // 前方を捉えたら滑らかに前進加速
-                            speed += (maxSpeed - speed) * 0.05; 
+                            speed += (maxSpeed - speed) * 0.05;
                         }
                     }
                 } else {
@@ -384,35 +544,33 @@
                     if (Math.abs(speed) < 0.001) speed = 0;
                 }
 
-                // --- 車の移動処理 ---
                 const direction = new THREE.Vector3(0, 0, 1);
                 direction.applyQuaternion(car.quaternion);
                 car.position.addScaledVector(direction, speed);
 
                 checkFlagCollisions();
+                updateEnemyAI();
+                updateRadar();
 
-                // --- 三人称カメラ追従 ---
                 const backDirection = new THREE.Vector3(0, 0, -1);
                 backDirection.applyQuaternion(car.quaternion);
-                
+
                 const targetCameraPos = new THREE.Vector3(
                     car.position.x + backDirection.x * 8,
                     car.position.y + 4,
                     car.position.z + backDirection.z * 8
                 );
-                
+
                 camera.position.lerp(targetCameraPos, 0.1);
                 camera.lookAt(car.position.x, car.position.y + 1, car.position.z);
-
-                // UIの数値更新
-                document.getElementById('db-speed').innerText = speed.toFixed(3);
-                document.getElementById('db-flag').innerText = hasTarget.toString();
-
-                updateRadar();
+                
+                // ★修正：緑色のデバッグテキストUIを書き換えるコードを完全に消去しました
             }
 
             renderer.render(scene, camera);
         }
+        
+        animate();
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
