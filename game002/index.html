@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- スマホでの拡大縮小を禁止し、アプリのように快適に操作するためのビューポート設定 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
-    <title>Three.js 3Dカーゲーム - スマホ・PC完全対応版</title>
+    <title>Three.js 3Dカーゲーム - スマホ・PC完全確定版</title>
     <style>
         /* スマホ独特のスクロールバウンスや誤作動、青い選択ハイライトを完全にブロック */
         body { 
@@ -232,14 +232,14 @@
         // 敵パトカー用の物理変数
         let enemyCar = null;
         let enemySpeed = 0;
-        const enemyMaxSpeed = 0.30; 
+        let enemyMaxSpeed = 0.30; 
 
         const raycaster = new THREE.Raycaster(); 
         const mouse = new THREE.Vector2();       
         const targetPosition = new THREE.Vector3(); 
         let car = null; 
 
-        // 7. 独立した非同期ローダー処理（★修正：提示いただいた正しいローカルパスを適用）
+        // 7. 独立した非同期ローダー処理（修正済みの正しいローカルパス）
         const loader = new GLTFLoader();
         const playerPath = './kenney_car-kit/Models/GLB format/sedan-sports.glb';
         const policePath = './kenney_car-kit/Models/GLB format/police.glb';
@@ -266,13 +266,19 @@
         });
 
         // STARTボタンがクリックされた時の処理
+        document.getElementById('start-btn').addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); 
+        });
         document.getElementById('start-btn').addEventListener('click', (e) => {
             e.stopPropagation(); 
             isStageReady = false; 
             document.getElementById('start-ui').style.display = 'none';
         });
 
-        // RETRYボタンがクリックされた時の完全初期化リセット処理
+        // RETRYボタンがクリックされた時の完全初期化リセット処理（定数代入エラーを完全修正）
+        document.getElementById('retry-btn').addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); 
+        });
         document.getElementById('retry-btn').addEventListener('click', (e) => {
             e.stopPropagation(); 
 
@@ -283,6 +289,8 @@
             speed = 0;
             enemySpeed = 0;
             hasTarget = false;
+            
+            // ★バグ修正：変数であるパトカーの最高速度を正しく初期値（0.30）にリセット
             enemyMaxSpeed = 0.30; 
 
             if (car) {
@@ -305,7 +313,7 @@
             spawnFlags();
         });
 
-        // ★新機能：スマホ・PCの入力を統合して処理する共通関数
+        // スマホ・PCの入力を統合して処理する共通関数
         function updateTargetFromInput(clientX, clientY) {
             if (isGameOver || isStageReady) return;
 
@@ -322,7 +330,6 @@
                     if (car) {
                         const clickDist = car.position.distanceTo(hitPoint);
                         
-                        // 近距離スピン・逆走防止
                         if (speed < 0.05 && clickDist < 3.5) {
                             hasTarget = true;
                             targetPosition.copy(car.position);
@@ -348,22 +355,21 @@
             }
         }
 
-        // 8. ★新機能：スマホとPCのマルチタッチ・ドラッグ対応イベントバインド
-        let isInputActive = false; // 押しっぱなし状態の管理
+        // 8. スマホとPCのマルチタッチ・ドラッグ対応イベントバインド
+        let isInputActive = false; 
 
-        // 画面がタッチ（クリック）された瞬間
         window.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('#retry-btn') || e.target.closest('#start-btn')) return;
+
             isInputActive = true;
             updateTargetFromInput(e.clientX, e.clientY);
         });
 
-        // 画面に指（マウス）を置いたままグリグリ動かしたとき（ドラッグ追従）
         window.addEventListener('pointermove', (e) => {
             if (!isInputActive) return;
             updateTargetFromInput(e.clientX, e.clientY);
         });
 
-        // 画面から指（マウス）が離れたとき
         window.addEventListener('pointerup', () => {
             isInputActive = false;
         });
